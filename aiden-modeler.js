@@ -48,7 +48,7 @@ const model = window.AidenModel?.createAiden?.();
 if (!model) {
   console.error("AidenModel not found. Load aiden.js before aiden-modeler.js.");
 }
-const { group: aidenGroup, parts, mouthMesh } = model || {};
+const { group: aidenGroup, parts } = model || {};
 const safeParts = parts || {};
 scene.add(aidenGroup);
 
@@ -64,24 +64,6 @@ const explodeSlider = document.getElementById("explode");
 const explodeValue = document.getElementById("explodeValue");
 const highlightSelect = document.getElementById("highlightPart");
 
-const morphSliders = {
-  mouthOpen: document.getElementById("morph-mouthOpen"),
-  smile: document.getElementById("morph-smile"),
-  wide: document.getElementById("morph-wide"),
-};
-const morphValues = {
-  mouthOpen: document.getElementById("morph-mouthOpen-value"),
-  smile: document.getElementById("morph-smile-value"),
-  wide: document.getElementById("morph-wide-value"),
-};
-const morphDefaults = {
-  mouthOpen: 0,
-  smile: 0,
-  wide: 0,
-};
-
-const mouthOpenLimit = 0.5;
-
 const browSliders = {
   raise: document.getElementById("brow-raise"),
   tilt: document.getElementById("brow-tilt"),
@@ -95,7 +77,6 @@ const browDefaults = {
   tilt: 0,
 };
 
-const resetMorphs = document.getElementById("resetMorphs");
 const resetCamera = document.getElementById("resetCamera");
 const toggleWireframe = document.getElementById("toggleWireframe");
 const toggleGrid = document.getElementById("toggleGrid");
@@ -110,7 +91,6 @@ const partEntries = [
   { id: "glasses", object: safeParts.glasses },
   { id: "eyes", object: safeParts.eyes },
   { id: "eyebrows", object: safeParts.eyebrows },
-  { id: "mouth", object: safeParts.mouth },
 ].filter((entry) => entry.object);
 
 partEntries.forEach(({ object }) => {
@@ -126,7 +106,6 @@ Object.entries({
   "part-glasses": "glasses",
   "part-eyes": "eyes",
   "part-eyebrows": "eyebrows",
-  "part-mouth": "mouth",
 }).forEach(([inputId, partId]) => {
   const input = document.getElementById(inputId);
   if (!input) return;
@@ -147,19 +126,6 @@ highlightSelect.addEventListener("change", (event) => {
   setHighlight(event.target.value);
 });
 
-Object.entries(morphSliders).forEach(([name, input]) => {
-  input.addEventListener("input", () => {
-    updateMorphs();
-  });
-});
-
-Object.entries(morphDefaults).forEach(([name, value]) => {
-  if (morphSliders[name]) {
-    morphSliders[name].value = value.toString();
-  }
-});
-updateMorphs();
-
 Object.entries(browSliders).forEach(([name, input]) => {
   input.addEventListener("input", () => {
     updateEyebrows();
@@ -172,13 +138,6 @@ Object.entries(browDefaults).forEach(([name, value]) => {
   }
 });
 updateEyebrows();
-
-resetMorphs.addEventListener("click", () => {
-  Object.values(morphSliders).forEach((input) => {
-    input.value = "0";
-  });
-  updateMorphs();
-});
 
 toggleWireframe.addEventListener("change", (event) => {
   setWireframe(event.target.checked);
@@ -197,24 +156,6 @@ resetCamera.addEventListener("click", () => {
   updateSphericalFromCamera();
   updateCameraFromSpherical();
 });
-
-function updateMorphs() {
-  updateMorphValueDisplays();
-  const influences = {
-    mouthOpen: Math.min(mouthOpenLimit, Number(morphSliders.mouthOpen.value)),
-    smile: Number(morphSliders.smile.value),
-    wide: Number(morphSliders.wide.value),
-  };
-
-  window.AidenModel?.updateMouthMesh?.(mouthMesh, influences);
-}
-
-function updateMorphValueDisplays() {
-  Object.entries(morphSliders).forEach(([name, input]) => {
-    if (!morphValues[name]) return;
-    morphValues[name].textContent = Number(input.value).toFixed(2);
-  });
-}
 
 function updateEyebrows() {
   const raise = Number(browSliders.raise?.value || 0);

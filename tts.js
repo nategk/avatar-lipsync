@@ -3,9 +3,14 @@ import { HeadTTS } from "./vendor/headtts/headtts.mjs";
 const ttsStatus = document.getElementById("ttsStatus");
 const speakBtn = document.getElementById("speakBtn");
 const textInput = document.getElementById("ttsInput");
-const perfInit = document.getElementById("perfInit");
+const perfInitTotal = document.getElementById("perfInitTotal");
+const perfConnect = document.getElementById("perfConnect");
+const perfSetup = document.getElementById("perfSetup");
 const perfSynthesize = document.getElementById("perfSynthesize");
-const perfAudio = document.getElementById("perfAudio");
+const perfDecode = document.getElementById("perfDecode");
+const perfAudioStart = document.getElementById("perfAudioStart");
+const perfVisemeStart = document.getElementById("perfVisemeStart");
+const perfPlayback = document.getElementById("perfPlayback");
 
 let tts = null;
 let ttsReady = false;
@@ -14,6 +19,7 @@ let currentAudio = null;
 let currentUrl = null;
 let rafId = null;
 let audioCtx = null;
+let lastSynthEnd = null;
 
 function updateStatus(text) {
   if (ttsStatus) {
@@ -101,20 +107,24 @@ async function ensureTtsReady() {
   });
 
   try {
+    const connectStart = performance.now();
     await tts.connect(null, (progress) => updateStatus(formatProgress(progress)));
+    setPerf(perfConnect, "Model load", performance.now() - connectStart);
+    const setupStart = performance.now();
     await tts.setup({
       voice: "am_eric",
       language: "en-us",
       speed: 1,
       audioEncoding: "wav",
     });
+    setPerf(perfSetup, "Voice setup", performance.now() - setupStart);
     ttsReady = true;
     updateStatus("TTS ready");
-    setPerf(perfInit, "Init", performance.now() - initStart);
+    setPerf(perfInitTotal, "Init total", performance.now() - initStart);
   } catch (error) {
     console.error(error);
     updateStatus("TTS failed to initialize. Check console.");
-    setPerf(perfInit, "Init", performance.now() - initStart);
+    setPerf(perfInitTotal, "Init total", performance.now() - initStart);
   } finally {
     ttsConnecting = false;
   }
@@ -165,11 +175,12 @@ async function normalizeAudioBuffer(audioData) {
   return null;
 }
 
-function scheduleVisemes(getTimeMs, audioEndCallback) {
+function scheduleVisemes(getTimeMs, audioEndCallback, onFirstViseme) {
   const visemes = audioEndCallback.visemes || [];
   const vtimes = audioEndCallback.vtimes || [];
   const vdurations = audioEndCallback.vdurations || [];
   let index = 0;
+  let firstHit = false;
 
   const step = () => {
     const t = getTimeMs();
@@ -181,6 +192,10 @@ function scheduleVisemes(getTimeMs, audioEndCallback) {
       index += 1;
     }
     const viseme = visemes[index] || "sil";
+    if (!firstHit) {
+      firstHit = true;
+      onFirstViseme?.();
+    }
     if (window.aidenVisemeDriver) {
       window.aidenVisemeDriver.setViseme(viseme, 1);
     }
@@ -193,6 +208,7 @@ function scheduleVisemes(getTimeMs, audioEndCallback) {
 async function playWithVisemes(audioData) {
   stopCurrentPlayback();
 
+  const playbackStart = performance.now();
   const audioBuffer = await normalizeAudioBuffer(audioData.audio);
   const context = getAudioContext();
   const payload = {
@@ -206,51 +222,65 @@ async function playWithVisemes(audioData) {
     console.warn("audioData.audio type:", audioData?.audio?.constructor?.name, audioData?.audio);
   }
 
-  const audioStart = performance.now();
-  setPerf(perfAudio, "Audio", null);
+  setPerf(perfDecode, "Audio decode", null);
+  setPerf(perfAudioStart, "Audio start latency", null);
+  setPerf(perfVisemeStart, "First viseme", null);
+  setPerf(perfPlayback, "Playback duration", null);
 
   return new Promise((resolve) => {
     if (audioBuffer) {
-      const playDecoded = (decoded) => {
+      const playDecoded = (decoded, decodeMs) => {
         const source = context.createBufferSource();
         source.buffer = decoded;
           source.connect(context.destination);
           const startTime = context.currentTime + 0.01;
           source.start(startTime);
           updateStatus("Speaking...");
+          setPerf(
+            perfAudioStart,
+            "Audio start latency",
+            performance.now() - playbackStart
+          );
+          setPerf(perfDecode, "Audio decode", decodeMs ?? 0);
 
           scheduleVisemes(
             () => (context.currentTime - startTime) * 1000,
-            payload
+            payload,
+            () => setPerf(perfVisemeStart, "First viseme", performance.now() - playbackStart)
           );
 
           source.onended = () => {
             stopCurrentPlayback();
             updateStatus("TTS idle");
-            setPerf(perfAudio, "Audio", performance.now() - audioStart);
+            setPerf(
+              perfPlayback,
+              "Playback duration",
+              performance.now() - playbackStart
+            );
             resolve();
           };
       };
 
       if (audioBuffer instanceof AudioBuffer) {
-        playDecoded(audioBuffer);
+        playDecoded(audioBuffer, 0);
       } else {
+        const decodeStart = performance.now();
         context
           .decodeAudioData(audioBuffer.slice(0))
-          .then(playDecoded)
+          .then((decoded) => playDecoded(decoded, performance.now() - decodeStart))
           .catch((error) => {
             console.error(error);
             updateStatus("Audio decode failed. Falling back.");
-            fallbackToHtmlAudio(audioBuffer, payload, resolve, audioStart);
+            fallbackToHtmlAudio(audioBuffer, payload, resolve, playbackStart);
           });
       }
     } else {
-      fallbackToHtmlAudio(audioBuffer, payload, resolve, audioStart);
+      fallbackToHtmlAudio(audioBuffer, payload, resolve, playbackStart);
     }
   });
 }
 
-function fallbackToHtmlAudio(audioBuffer, payload, resolve, audioStart) {
+function fallbackToHtmlAudio(audioBuffer, payload, resolve, playbackStart) {
   if (!audioBuffer) {
     updateStatus("Audio buffer missing.");
     resolve();
@@ -264,13 +294,22 @@ function fallbackToHtmlAudio(audioBuffer, payload, resolve, audioStart) {
 
   audio.addEventListener("play", () => {
     updateStatus("Speaking...");
-    scheduleVisemes(() => audio.currentTime * 1000, payload);
+    setPerf(
+      perfAudioStart,
+      "Audio start latency",
+      performance.now() - playbackStart
+    );
+    scheduleVisemes(
+      () => audio.currentTime * 1000,
+      payload,
+      () => setPerf(perfVisemeStart, "First viseme", performance.now() - playbackStart)
+    );
   });
 
   audio.addEventListener("ended", () => {
     stopCurrentPlayback();
     updateStatus("TTS idle");
-    setPerf(perfAudio, "Audio", performance.now() - audioStart);
+    setPerf(perfPlayback, "Playback duration", performance.now() - playbackStart);
     resolve();
   });
 
@@ -284,7 +323,7 @@ function fallbackToHtmlAudio(audioBuffer, payload, resolve, audioStart) {
     console.error(error);
     updateStatus("Audio playback blocked by browser.");
     stopCurrentPlayback();
-    setPerf(perfAudio, "Audio", performance.now() - audioStart);
+    setPerf(perfPlayback, "Playback duration", performance.now() - playbackStart);
     resolve();
   });
 }
@@ -293,14 +332,15 @@ async function speakText(text) {
   await ensureTtsReady();
   if (ttsReady && tts) {
     const synthStart = performance.now();
-    setPerf(perfSynthesize, "Synthesize", null);
+    setPerf(perfSynthesize, "Synthesis", null);
     const messages = await tts.synthesize({ input: text });
     const audioMessages = (messages || []).filter((msg) => msg.type === "audio");
     if (!audioMessages.length) {
       updateStatus("No audio generated.");
       return;
     }
-    setPerf(perfSynthesize, "Synthesize", performance.now() - synthStart);
+    lastSynthEnd = performance.now();
+    setPerf(perfSynthesize, "Synthesis", lastSynthEnd - synthStart);
     for (const msg of audioMessages) {
       await playWithVisemes(msg.data);
     }

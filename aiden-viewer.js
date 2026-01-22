@@ -42,140 +42,228 @@ if (!model) {
 }
 
 const aidenGroup = model?.group;
-const mouthMesh = model?.mouthMesh || model?.parts?.mouth;
 const eyebrows = model?.parts?.eyebrows;
 
 if (aidenGroup) {
   scene.add(aidenGroup);
 }
 
-const morphTargets = ["mouthOpen", "wide", "smile"];
-const targetInfluences = Object.fromEntries(morphTargets.map((name) => [name, 0]));
-const currentInfluences = Object.fromEntries(morphTargets.map((name) => [name, 0]));
-
-const expressionTargets = {
-  eyebrowRaise: 0,
-  eyebrowTilt: 0,
-  smile: 0,
-};
 const currentExpressions = {
   eyebrowRaise: 0,
   eyebrowTilt: 0,
-  smile: 0,
 };
 
-const visemeMap = {
-  sil: { mouthOpen: 0, wide: 0 },
-  AA: { mouthOpen: 0.5, wide: 0.35 },
-  EE: { mouthOpen: 0.25, wide: 0.4 },
-  OO: { mouthOpen: 0.35, wide: 0.05 },
-  MM: { mouthOpen: 0, wide: 0 },
-  FF: { mouthOpen: 0.2, wide: 0.1 },
-  TH: { mouthOpen: 0.5, wide: 0.2 },
-  CH: { mouthOpen: 0.4, wide: 0.1 },
-  SS: { mouthOpen: 0.2, wide: 0.7 },
-  DD: { mouthOpen: 0.35, wide: 0.15 },
-  kk: { mouthOpen: 0.25, wide: 0.1 },
-  nn: { mouthOpen: 0.15, wide: 0.1 },
-  RR: { mouthOpen: 0.3, wide: 0.05 },
-  aa: { mouthOpen: 0.5, wide: 0.35 },
-  E: { mouthOpen: 0.25, wide: 0.35 },
-  I: { mouthOpen: 0.18, wide: 0.3 },
-  O: { mouthOpen: 0.35, wide: 0.05 },
-  U: { mouthOpen: 0.25, wide: 0 },
-  PP: { mouthOpen: 0, wide: 0 },
-};
-
-const expressionMap = {
-  sil: { smile: 0.1, eyebrowRaise: 0.05, eyebrowTilt: 0 },
-  AA: { smile: 0.15, eyebrowRaise: 0.1, eyebrowTilt: 0.02 },
-  EE: { smile: 0.3, eyebrowRaise: 0.12, eyebrowTilt: 0.02 },
-  OO: { smile: 0.05, eyebrowRaise: 0.08, eyebrowTilt: -0.01 },
-  MM: { smile: 0.08, eyebrowRaise: 0.05, eyebrowTilt: 0 },
-  FF: { smile: 0.1, eyebrowRaise: 0.06, eyebrowTilt: 0 },
-  TH: { smile: 0.15, eyebrowRaise: 0.12, eyebrowTilt: 0.03 },
-  CH: { smile: 0.12, eyebrowRaise: 0.08, eyebrowTilt: 0.01 },
-  SS: { smile: 0.2, eyebrowRaise: 0.1, eyebrowTilt: 0.02 },
-  DD: { smile: 0.08, eyebrowRaise: 0.05, eyebrowTilt: 0 },
-  kk: { smile: 0.1, eyebrowRaise: 0.06, eyebrowTilt: 0 },
-  nn: { smile: 0.1, eyebrowRaise: 0.06, eyebrowTilt: 0 },
-  RR: { smile: 0.12, eyebrowRaise: 0.07, eyebrowTilt: 0.01 },
-  aa: { smile: 0.15, eyebrowRaise: 0.1, eyebrowTilt: 0.02 },
-  E: { smile: 0.25, eyebrowRaise: 0.1, eyebrowTilt: 0.02 },
-  I: { smile: 0.25, eyebrowRaise: 0.1, eyebrowTilt: 0.02 },
-  O: { smile: 0.08, eyebrowRaise: 0.08, eyebrowTilt: -0.01 },
-  U: { smile: 0.05, eyebrowRaise: 0.07, eyebrowTilt: -0.01 },
-  PP: { smile: 0.06, eyebrowRaise: 0.05, eyebrowTilt: 0 },
-};
-
-let currentViseme = "sil";
-let intensity = 1.0;
 let externalViseme = null;
 let externalIntensity = 1.0;
-let useExternalViseme = false;
+let pendingMouthPose = null;
+let pendingBlendshapePose = null;
 
-const visemeSelect = document.getElementById("viseme");
-const intensitySlider = document.getElementById("intensity");
-const intensityValue = document.getElementById("intensityValue");
+const OVR_VISEMES = new Set([
+  "sil",
+  "PP",
+  "FF",
+  "TH",
+  "DD",
+  "kk",
+  "CH",
+  "SS",
+  "nn",
+  "RR",
+  "aa",
+  "E",
+  "I",
+  "O",
+  "U",
+]);
 
-visemeSelect?.addEventListener("change", (event) => {
-  currentViseme = event.target.value;
-  updateTargets();
-});
+const ARKIT_BLENDSHAPE_KEYS = new Set([
+  "browDownLeft",
+  "browDownRight",
+  "browInnerUp",
+  "browOuterUpLeft",
+  "browOuterUpRight",
+  "cheekPuff",
+  "cheekSquintLeft",
+  "cheekSquintRight",
+  "eyeBlinkLeft",
+  "eyeBlinkRight",
+  "eyeLookDownLeft",
+  "eyeLookDownRight",
+  "eyeLookInLeft",
+  "eyeLookInRight",
+  "eyeLookOutLeft",
+  "eyeLookOutRight",
+  "eyeLookUpLeft",
+  "eyeLookUpRight",
+  "eyeSquintLeft",
+  "eyeSquintRight",
+  "eyeWideLeft",
+  "eyeWideRight",
+  "jawForward",
+  "jawLeft",
+  "jawOpen",
+  "jawRight",
+  "mouthClose",
+  "mouthDimpleLeft",
+  "mouthDimpleRight",
+  "mouthFrownLeft",
+  "mouthFrownRight",
+  "mouthFunnel",
+  "mouthLeft",
+  "mouthLowerDownLeft",
+  "mouthLowerDownRight",
+  "mouthPressLeft",
+  "mouthPressRight",
+  "mouthPucker",
+  "mouthRight",
+  "mouthRollLower",
+  "mouthRollUpper",
+  "mouthShrugLower",
+  "mouthShrugUpper",
+  "mouthSmileLeft",
+  "mouthSmileRight",
+  "mouthStretchLeft",
+  "mouthStretchRight",
+  "mouthUpperUpLeft",
+  "mouthUpperUpRight",
+  "noseSneerLeft",
+  "noseSneerRight",
+  "tongueOut",
+]);
 
-intensitySlider?.addEventListener("input", (event) => {
-  intensity = Number(event.target.value);
-  if (intensityValue) {
-    intensityValue.textContent = intensity.toFixed(2);
+function normalizeViseme(viseme) {
+  if (!viseme) return "sil";
+  const raw = String(viseme).trim();
+  const stripped = raw.startsWith("viseme_") ? raw.slice(7) : raw;
+  if (OVR_VISEMES.has(stripped)) return stripped;
+  const lower = stripped.toLowerCase();
+  const title = lower.toUpperCase();
+  if (OVR_VISEMES.has(lower)) return lower;
+  if (OVR_VISEMES.has(title)) return title;
+  return "sil";
+}
+
+const visemePoseMap = {
+  sil: {
+    mouth: { jawOpen: 0, mouthClose: 0.8, mouthFunnel: 0, mouthPucker: 0 },
+    brows: { eyebrowRaise: 0.05, eyebrowTilt: 0 },
+  },
+  PP: {
+    mouth: { jawOpen: 0, mouthClose: 1, mouthPucker: 0.1 },
+    brows: { eyebrowRaise: 0.05, eyebrowTilt: 0 },
+  },
+  FF: {
+    mouth: { jawOpen: 0.2, mouthFunnel: 0.1, mouthClose: 0.2 },
+    brows: { eyebrowRaise: 0.06, eyebrowTilt: 0 },
+  },
+  TH: {
+    mouth: { jawOpen: 0.45, tongueOut: 0.4, mouthPucker: 0.05 },
+    brows: { eyebrowRaise: 0.1, eyebrowTilt: 0.02 },
+  },
+  DD: {
+    mouth: { jawOpen: 0.25, tongueOut: 0.2, mouthClose: 0.1 },
+    brows: { eyebrowRaise: 0.05, eyebrowTilt: 0 },
+  },
+  kk: {
+    mouth: { jawOpen: 0.25, tongueOut: 0.15, mouthClose: 0.05 },
+    brows: { eyebrowRaise: 0.05, eyebrowTilt: 0 },
+  },
+  CH: {
+    mouth: { jawOpen: 0.4, mouthFunnel: 0.2, mouthPucker: 0.15 },
+    brows: { eyebrowRaise: 0.08, eyebrowTilt: 0.01 },
+  },
+  SS: {
+    mouth: { jawOpen: 0.2, mouthStretchLeft: 0.3, mouthStretchRight: 0.3 },
+    brows: { eyebrowRaise: 0.09, eyebrowTilt: 0.02 },
+  },
+  nn: {
+    mouth: { jawOpen: 0.15, tongueOut: 0.1, mouthClose: 0.05 },
+    brows: { eyebrowRaise: 0.05, eyebrowTilt: 0 },
+  },
+  RR: {
+    mouth: { jawOpen: 0.3, mouthPucker: 0.2 },
+    brows: { eyebrowRaise: 0.06, eyebrowTilt: 0.01 },
+  },
+  aa: {
+    mouth: { jawOpen: 0.7, mouthFunnel: 0.05 },
+    brows: { eyebrowRaise: 0.08, eyebrowTilt: 0.02 },
+  },
+  E: {
+    mouth: { jawOpen: 0.3, mouthSmileLeft: 0.35, mouthSmileRight: 0.35 },
+    brows: { eyebrowRaise: 0.12, eyebrowTilt: 0.02 },
+  },
+  I: {
+    mouth: { jawOpen: 0.2, mouthSmileLeft: 0.25, mouthSmileRight: 0.25 },
+    brows: { eyebrowRaise: 0.1, eyebrowTilt: 0.02 },
+  },
+  O: {
+    mouth: { jawOpen: 0.35, mouthPucker: 0.5, mouthFunnel: 0.3 },
+    brows: { eyebrowRaise: 0.06, eyebrowTilt: -0.01 },
+  },
+  U: {
+    mouth: { jawOpen: 0.25, mouthPucker: 0.6, mouthFunnel: 0.25 },
+    brows: { eyebrowRaise: 0.05, eyebrowTilt: -0.01 },
+  },
+};
+
+function applyVisemePose(viseme, intensity) {
+  const normalized = normalizeViseme(viseme);
+  const pose = visemePoseMap[normalized] || visemePoseMap.sil;
+  const mouth = pose.mouth || visemePoseMap.sil.mouth;
+  const brows = pose.brows || visemePoseMap.sil.brows;
+  const amt = Math.max(0, Math.min(1, intensity));
+
+  pendingMouthPose = {
+    jawOpen: (mouth.jawOpen || 0) * amt,
+    mouthClose: (mouth.mouthClose || 0) * amt,
+    mouthFunnel: (mouth.mouthFunnel || 0) * amt,
+    mouthPucker: (mouth.mouthPucker || 0) * amt,
+    mouthSmileLeft: (mouth.mouthSmileLeft || 0) * amt,
+    mouthSmileRight: (mouth.mouthSmileRight || 0) * amt,
+    mouthFrownLeft: (mouth.mouthFrownLeft || 0) * amt,
+    mouthFrownRight: (mouth.mouthFrownRight || 0) * amt,
+    mouthPressLeft: (mouth.mouthPressLeft || 0) * amt,
+    mouthPressRight: (mouth.mouthPressRight || 0) * amt,
+    mouthStretchLeft: (mouth.mouthStretchLeft || 0) * amt,
+    mouthStretchRight: (mouth.mouthStretchRight || 0) * amt,
+    mouthDimpleLeft: (mouth.mouthDimpleLeft || 0) * amt,
+    mouthDimpleRight: (mouth.mouthDimpleRight || 0) * amt,
+    mouthRollLower: (mouth.mouthRollLower || 0) * amt,
+    mouthRollUpper: (mouth.mouthRollUpper || 0) * amt,
+    mouthShrugLower: (mouth.mouthShrugLower || 0) * amt,
+    mouthShrugUpper: (mouth.mouthShrugUpper || 0) * amt,
+    tongueOut: (mouth.tongueOut || 0) * amt,
+  };
+
+  currentExpressions.eyebrowRaise = brows.eyebrowRaise * amt;
+  currentExpressions.eyebrowTilt = brows.eyebrowTilt * amt;
+
+  // TODO: Hook pendingMouthPose into the next mouth rig implementation.
+}
+
+function applyBlendshapePose(blendshapes, intensity = 1) {
+  if (!blendshapes || typeof blendshapes !== "object") {
+    pendingBlendshapePose = null;
+    return;
   }
-  updateTargets();
-});
+  const amt = Math.max(0, Math.min(1, intensity));
+  const nextPose = {};
 
-updateTargets();
-
-function updateTargets() {
-  const activeViseme = useExternalViseme ? externalViseme : currentViseme;
-  const activeIntensity = useExternalViseme ? externalIntensity : intensity;
-  const base = visemeMap[activeViseme] || visemeMap.sil;
-  const expression = expressionMap[activeViseme] || expressionMap.sil;
-  morphTargets.forEach((name) => {
-    if (name === "smile") {
-      targetInfluences[name] = (expression.smile || 0) * activeIntensity;
-    } else {
-      targetInfluences[name] = (base[name] || 0) * activeIntensity;
-    }
+  Object.entries(blendshapes).forEach(([key, value]) => {
+    if (!ARKIT_BLENDSHAPE_KEYS.has(key)) return;
+    const numeric = typeof value === "number" ? value : Number(value);
+    if (Number.isNaN(numeric)) return;
+    nextPose[key] = Math.max(0, Math.min(1, numeric)) * amt;
   });
-  expressionTargets.eyebrowRaise = (expression.eyebrowRaise || 0) * activeIntensity;
-  expressionTargets.eyebrowTilt = (expression.eyebrowTilt || 0) * activeIntensity;
+
+  pendingBlendshapePose = nextPose;
+  // TODO: Hook pendingBlendshapePose into the next mouth/face rig implementation.
 }
 
 function animate() {
   requestAnimationFrame(animate);
 
-  if (!mouthMesh) return;
-
-  const lerpSpeed = 0.12;
-  morphTargets.forEach((name) => {
-    currentInfluences[name] = THREE.MathUtils.lerp(
-      currentInfluences[name],
-      targetInfluences[name],
-      lerpSpeed
-    );
-  });
-
-  currentExpressions.eyebrowRaise = THREE.MathUtils.lerp(
-    currentExpressions.eyebrowRaise,
-    expressionTargets.eyebrowRaise,
-    lerpSpeed
-  );
-  currentExpressions.eyebrowTilt = THREE.MathUtils.lerp(
-    currentExpressions.eyebrowTilt,
-    expressionTargets.eyebrowTilt,
-    lerpSpeed
-  );
   window.AidenModel?.updateEyebrows?.(eyebrows, currentExpressions);
-
-  window.AidenModel?.updateMouthMesh?.(mouthMesh, currentInfluences);
   if (aidenGroup) {
     aidenGroup.rotation.y = Math.sin(Date.now() * 0.0005) * 0.08;
   }
@@ -192,15 +280,25 @@ window.addEventListener("resize", () => {
 
 window.aidenVisemeDriver = {
   setViseme(viseme, amount = 1) {
-    useExternalViseme = true;
-    externalViseme = viseme || "sil";
+    externalViseme = normalizeViseme(viseme);
     externalIntensity = Math.max(0, Math.min(1, amount));
-    updateTargets();
+    applyVisemePose(externalViseme, externalIntensity);
   },
   clearViseme() {
-    useExternalViseme = false;
     externalViseme = null;
-    updateTargets();
+    applyVisemePose("sil", 0);
+  },
+  setBlendshapes(blendshapes, amount = 1) {
+    applyBlendshapePose(blendshapes, amount);
+  },
+};
+
+window.aidenRigDebug = {
+  getPendingMouthPose() {
+    return pendingMouthPose ? { ...pendingMouthPose } : null;
+  },
+  getPendingBlendshapePose() {
+    return pendingBlendshapePose ? { ...pendingBlendshapePose } : null;
   },
 };
 
