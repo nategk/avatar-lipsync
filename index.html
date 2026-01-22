@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Aiden | Sable Avatar Prototype</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f1116;
+      color: #f5f5f5;
+      overflow: hidden;
+    }
+
+    #viewport {
+      width: 100vw;
+      height: 100vh;
+    }
+
+    #ui {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      padding: 14px 16px;
+      border-radius: 12px;
+      background: rgba(12, 14, 18, 0.72);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(12px);
+      max-width: 320px;
+    }
+
+    #ui h1 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+
+    .nav {
+      margin-bottom: 12px;
+    }
+
+    .nav a {
+      color: #8fb2ff;
+      text-decoration: none;
+      font-size: 12px;
+    }
+
+    .nav a:hover {
+      text-decoration: underline;
+    }
+
+    .control {
+      margin-top: 12px;
+    }
+
+    .control label {
+      font-size: 12px;
+      opacity: 0.72;
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    select,
+    input[type="range"] {
+      width: 100%;
+    }
+
+    textarea {
+      width: 100%;
+      resize: vertical;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: rgba(15, 17, 22, 0.9);
+      color: #f5f5f5;
+      padding: 8px 10px;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    button {
+      width: 100%;
+      padding: 10px 12px;
+      border: none;
+      border-radius: 8px;
+      background: #2b6df3;
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.35);
+    }
+
+    .value {
+      font-size: 12px;
+      opacity: 0.7;
+      text-align: right;
+      margin-top: 4px;
+    }
+
+    .note {
+      margin-top: 10px;
+      font-size: 12px;
+      line-height: 1.5;
+      opacity: 0.72;
+    }
+  </style>
+</head>
+<body>
+  <div id="viewport"></div>
+
+  <div id="ui">
+    <h1>Aiden — Avatar Morph Targets</h1>
+    <div class="nav">
+      <a href="./aiden-modeler.html">Open Aiden modeler</a>
+    </div>
+    <div class="control">
+      <label for="viseme">Viseme</label>
+      <select id="viseme">
+        <option value="sil">sil (rest)</option>
+        <option value="AA">AA (ah)</option>
+        <option value="EE">EE (ee)</option>
+        <option value="OO">OO (oh)</option>
+        <option value="MM">MM (m/b/p)</option>
+        <option value="FF">FF (f/v)</option>
+        <option value="TH">TH</option>
+        <option value="CH">CH</option>
+        <option value="SS">SS (s/z)</option>
+      </select>
+    </div>
+
+    <div class="control">
+      <label for="intensity">Intensity</label>
+      <input id="intensity" type="range" min="0" max="1" step="0.01" value="1" />
+      <div class="value" id="intensityValue">1.00</div>
+    </div>
+
+    <div class="note">
+      The head mesh exposes morph targets named <strong>mouthOpen</strong>,
+      <strong>smile</strong>, <strong>pucker</strong>, and <strong>wide</strong>.
+      Use them directly for phoneme blending.
+    </div>
+
+    <div class="control">
+      <label for="ttsInput">Text to Speech (HeadTTS)</label>
+      <textarea id="ttsInput" rows="3">Hello! I can speak with visemes.</textarea>
+    </div>
+    <div class="control">
+      <button id="speakBtn" type="button">Speak</button>
+      <div class="value" id="ttsStatus">TTS idle</div>
+    </div>
+    <div class="control">
+      <label>Performance</label>
+      <div class="value" id="perfInit">Init: —</div>
+      <div class="value" id="perfSynthesize">Synthesize: —</div>
+      <div class="value" id="perfAudio">Audio: —</div>
+    </div>
+  </div>
+
+  <script src="./vendor/three.min.js"></script>
+  <script src="./aiden.js"></script>
+  <script src="./aiden-viewer.js"></script>
+  <script type="module" src="./tts.js"></script>
+</body>
+</html>
