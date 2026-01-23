@@ -1,3 +1,8 @@
+import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { KTX2Loader } from "three/addons/loaders/KTX2Loader.js";
+import { MeshoptDecoder } from "./vendor/meshopt_decoder.module.js";
+
 const viewport = document.getElementById("viewport");
 const scene = new THREE.Scene();
 
@@ -9,7 +14,7 @@ const camera = new THREE.PerspectiveCamera(
   0.1,
   100
 );
-const defaultCameraPosition = new THREE.Vector3(0, 1.3, 5.2);
+const defaultCameraPosition = new THREE.Vector3(-0.6, 1.45, 5.2);
 camera.position.copy(defaultCameraPosition);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -19,7 +24,7 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 viewport.appendChild(renderer.domElement);
 
-const orbitTarget = new THREE.Vector3(0, 1.1, 0);
+const orbitTarget = new THREE.Vector3(-0.6, 1.25, 0);
 const spherical = new THREE.Spherical();
 const minRadius = 2.2;
 const maxRadius = 10;
@@ -44,6 +49,10 @@ const rimLight = new THREE.DirectionalLight(0xffffff, 0.35);
 rimLight.position.set(-2, 3, -5);
 scene.add(rimLight);
 
+const params = new URLSearchParams(window.location.search);
+const storedModel = window.localStorage?.getItem("aidenModel") || "aiden";
+const selectedModel = params.get("model") || storedModel;
+const useFaceModel = selectedModel === "facecap";
 const model = window.AidenModel?.createAiden?.();
 if (!model) {
   console.error("AidenModel not found. Load aiden.js before aiden-viewer.js.");
@@ -52,17 +61,40 @@ if (!model) {
 const aidenGroup = model?.group;
 const eyebrows = model?.parts?.eyebrows;
 const mouthMesh = model?.parts?.mouth;
+let morphTargetMeshes = [];
+let faceObject = null;
+let currentModelMode = selectedModel;
 
-if (aidenGroup) {
-  scene.add(aidenGroup);
-}
+const addAidenModel = () => {
+  if (aidenGroup && aidenGroup.parent !== scene) {
+    scene.add(aidenGroup);
+  }
+  morphTargetMeshes = [];
+  if (mouthMesh) {
+    morphTargetMeshes.push(mouthMesh);
+  }
+};
+
+const removeAidenModel = () => {
+  if (aidenGroup && aidenGroup.parent === scene) {
+    scene.remove(aidenGroup);
+  }
+};
+
+const clearFaceModel = () => {
+  if (faceObject) {
+    scene.remove(faceObject);
+    faceObject = null;
+  }
+  morphTargetMeshes = [];
+};
 
 const currentExpressions = {
   eyebrowRaise: 0,
   eyebrowTilt: 0,
 };
 
-const mouthSmoothing = 0.18;
+const mouthSmoothing = 0.32;
 
 let externalViseme = null;
 let externalIntensity = 1.0;
@@ -72,6 +104,85 @@ let pendingBlendshapePose = null;
 const visemeSelect = document.getElementById("viseme");
 const intensitySlider = document.getElementById("intensity");
 const intensityValue = document.getElementById("intensityValue");
+const modelSelect = document.getElementById("modelSelect");
+const morphTargetsList = document.getElementById("morphTargetsList");
+const FACE_CAP_TARGET_NAMES = [
+  "browInnerUp",
+  "browDown_L",
+  "browDown_R",
+  "browOuterUp_L",
+  "browOuterUp_R",
+  "eyeLookUp_L",
+  "eyeLookUp_R",
+  "eyeLookDown_L",
+  "eyeLookDown_R",
+  "eyeLookIn_L",
+  "eyeLookIn_R",
+  "eyeLookOut_L",
+  "eyeLookOut_R",
+  "eyeBlink_L",
+  "eyeBlink_R",
+  "eyeSquint_L",
+  "eyeSquint_R",
+  "eyeWide_L",
+  "eyeWide_R",
+  "cheekPuff",
+  "cheekSquint_L",
+  "cheekSquint_R",
+  "noseSneer_L",
+  "noseSneer_R",
+  "jawOpen",
+  "jawForward",
+  "jawLeft",
+  "jawRight",
+  "mouthFunnel",
+  "mouthPucker",
+  "mouthLeft",
+  "mouthRight",
+  "mouthRollUpper",
+  "mouthRollLower",
+  "mouthShrugUpper",
+  "mouthShrugLower",
+  "mouthClose",
+  "mouthSmile_L",
+  "mouthSmile_R",
+  "mouthFrown_L",
+  "mouthFrown_R",
+  "mouthDimple_L",
+  "mouthDimple_R",
+  "mouthUpperUp_L",
+  "mouthUpperUp_R",
+  "mouthLowerDown_L",
+  "mouthLowerDown_R",
+  "mouthPress_L",
+  "mouthPress_R",
+  "mouthStretch_L",
+  "mouthStretch_R",
+  "tongueOut",
+];
+
+const FACE_CAP_CANONICAL = {
+  mouthSmile_L: "mouthSmileLeft",
+  mouthSmile_R: "mouthSmileRight",
+  mouthFrown_L: "mouthFrownLeft",
+  mouthFrown_R: "mouthFrownRight",
+  mouthStretch_L: "mouthStretchLeft",
+  mouthStretch_R: "mouthStretchRight",
+  mouthPress_L: "mouthPressLeft",
+  mouthPress_R: "mouthPressRight",
+  mouthRollUpper: "mouthRollUpper",
+  mouthRollLower: "mouthRollLower",
+  mouthShrugUpper: "mouthShrugUpper",
+  mouthShrugLower: "mouthShrugLower",
+  mouthUpperUp_L: "mouthUpperUpLeft",
+  mouthUpperUp_R: "mouthUpperUpRight",
+  mouthLowerDown_L: "mouthLowerDownLeft",
+  mouthLowerDown_R: "mouthLowerDownRight",
+  mouthDimple_L: "mouthDimpleLeft",
+  mouthDimple_R: "mouthDimpleRight",
+  mouthLeft: "mouthPucker",
+  mouthRight: "mouthPucker",
+};
 
 const OVR_VISEMES = new Set([
   "sil",
@@ -322,28 +433,148 @@ function applyBlendshapePose(blendshapes, intensity = 1) {
 }
 
 function getMouthTargetValue(name) {
-  if (pendingBlendshapePose && name in pendingBlendshapePose) {
-    return pendingBlendshapePose[name];
+  const combined = {
+    ...(pendingMouthPose || {}),
+    ...(pendingBlendshapePose || {}),
+  };
+  return combined[name] || 0;
+}
+
+function applyMouthConstraints(targets) {
+  const jawOpen = targets.jawOpen || 0;
+  const mouthClose = targets.mouthClose || 0;
+  const mouthFunnel = targets.mouthFunnel || 0;
+  const mouthPucker = targets.mouthPucker || 0;
+  const stretch = Math.max(targets.mouthStretchLeft || 0, targets.mouthStretchRight || 0);
+  const smile = Math.max(targets.mouthSmileLeft || 0, targets.mouthSmileRight || 0);
+  const frown = Math.max(targets.mouthFrownLeft || 0, targets.mouthFrownRight || 0);
+
+  if (mouthClose > 0.6) {
+    targets.jawOpen = jawOpen * (1 - mouthClose);
+    targets.mouthFunnel = mouthFunnel * (1 - mouthClose);
+    targets.mouthPucker = mouthPucker * (1 - mouthClose * 0.6);
   }
-  if (pendingMouthPose && name in pendingMouthPose) {
-    return pendingMouthPose[name];
+
+  if (mouthPucker > 0.4 || mouthFunnel > 0.4) {
+    const suppress = Math.max(mouthPucker, mouthFunnel);
+    targets.mouthStretchLeft = (targets.mouthStretchLeft || 0) * (1 - suppress);
+    targets.mouthStretchRight = (targets.mouthStretchRight || 0) * (1 - suppress);
+  }
+
+  if (smile > 0 && frown > 0) {
+    if (smile >= frown) {
+      targets.mouthFrownLeft = (targets.mouthFrownLeft || 0) * (1 - smile);
+      targets.mouthFrownRight = (targets.mouthFrownRight || 0) * (1 - smile);
+    } else {
+      targets.mouthSmileLeft = (targets.mouthSmileLeft || 0) * (1 - frown);
+      targets.mouthSmileRight = (targets.mouthSmileRight || 0) * (1 - frown);
+    }
+  }
+
+  if (stretch > 0.4) {
+    targets.mouthPucker = (targets.mouthPucker || 0) * (1 - stretch);
+    targets.mouthFunnel = (targets.mouthFunnel || 0) * (1 - stretch);
+  }
+
+  return targets;
+}
+
+function resolveMorphTargetValue(name, targets) {
+  const canonical = FACE_CAP_CANONICAL[name] || FACE_CAP_CANONICAL[name.toLowerCase()] || name;
+  name = canonical;
+  if (name in targets) return targets[name] || 0;
+  const lower = name.toLowerCase();
+  if (lower.includes("jawopen")) return targets.jawOpen || 0;
+  if (lower.includes("mouthopen")) return targets.jawOpen || 0;
+  if (lower.includes("mouthclose")) return targets.mouthClose || 0;
+  if (lower.includes("funnel")) return targets.mouthFunnel || 0;
+  if (lower.includes("pucker") || lower.includes("kiss")) return targets.mouthPucker || 0;
+  if (lower.includes("smile")) {
+    const side = lower.includes("l") ? "left" : lower.includes("r") ? "right" : null;
+    if (side === "left") return targets.mouthSmileLeft || 0;
+    if (side === "right") return targets.mouthSmileRight || 0;
+    return Math.max(targets.mouthSmileLeft || 0, targets.mouthSmileRight || 0);
+  }
+  if (lower.includes("frown") || lower.includes("sad")) {
+    const side = lower.includes("l") ? "left" : lower.includes("r") ? "right" : null;
+    if (side === "left") return targets.mouthFrownLeft || 0;
+    if (side === "right") return targets.mouthFrownRight || 0;
+    return Math.max(targets.mouthFrownLeft || 0, targets.mouthFrownRight || 0);
+  }
+  if (lower.includes("stretch") || lower.includes("wide")) {
+    const side = lower.includes("l") ? "left" : lower.includes("r") ? "right" : null;
+    if (side === "left") return targets.mouthStretchLeft || 0;
+    if (side === "right") return targets.mouthStretchRight || 0;
+    return Math.max(targets.mouthStretchLeft || 0, targets.mouthStretchRight || 0);
+  }
+  if (lower.includes("press")) {
+    const side = lower.includes("l") ? "left" : lower.includes("r") ? "right" : null;
+    if (side === "left") return targets.mouthPressLeft || 0;
+    if (side === "right") return targets.mouthPressRight || 0;
+    return Math.max(targets.mouthPressLeft || 0, targets.mouthPressRight || 0);
+  }
+  if (lower.includes("mouthroll")) {
+    return lower.includes("upper") ? (targets.mouthRollUpper || 0) : (targets.mouthRollLower || 0);
+  }
+  if (lower.includes("mouthshrug")) {
+    return lower.includes("upper") ? (targets.mouthShrugUpper || 0) : (targets.mouthShrugLower || 0);
+  }
+  if (lower.includes("mouthlift")) {
+    return targets.mouthUpperUpLeft || targets.mouthUpperUpRight || 0;
   }
   return 0;
 }
 
 function updateMouthRig() {
-  if (!mouthMesh?.morphTargetDictionary || !mouthMesh.morphTargetInfluences) return;
-  const dict = mouthMesh.morphTargetDictionary;
-  const influences = mouthMesh.morphTargetInfluences;
-  Object.keys(dict).forEach((name) => {
-    const target = getMouthTargetValue(name);
-    const idx = dict[name];
-    const current = influences[idx] || 0;
-    influences[idx] = THREE.MathUtils.lerp(current, target, mouthSmoothing);
+  if (!morphTargetMeshes.length) return;
+  const baseTargets = applyMouthConstraints({
+    ...(pendingMouthPose || {}),
+    ...(pendingBlendshapePose || {}),
+  });
+  morphTargetMeshes.forEach((mesh) => {
+    if (!mesh?.morphTargetDictionary || !mesh.morphTargetInfluences) return;
+    const dict = mesh.morphTargetDictionary;
+    const influences = mesh.morphTargetInfluences;
+    Object.keys(dict).forEach((name) => {
+      const target = resolveMorphTargetValue(name, baseTargets);
+      const idx = dict[name];
+      const current = influences[idx] || 0;
+      influences[idx] = THREE.MathUtils.lerp(current, target, mouthSmoothing);
+    });
   });
 }
 
 applyVisemePose("sil", 1);
+
+const ktx2Loader = new KTX2Loader()
+  .setTranscoderPath("https://unpkg.com/three@0.160.0/examples/jsm/libs/basis/")
+  .detectSupport(renderer);
+const loader = new GLTFLoader().setKTX2Loader(ktx2Loader);
+const meshoptSetup = () => {
+  if (typeof loader.setMeshoptDecoder === "function") {
+    loader.setMeshoptDecoder(MeshoptDecoder);
+  } else if (typeof GLTFLoader.setMeshoptDecoder === "function") {
+    GLTFLoader.setMeshoptDecoder(MeshoptDecoder);
+  } else {
+    console.warn("GLTFLoader.setMeshoptDecoder not available; meshopt data may not load.");
+  }
+};
+const meshoptReady =
+  MeshoptDecoder?.ready?.then?.(() => {
+    meshoptSetup();
+  }) ||
+  Promise.resolve().then(() => {
+    meshoptSetup();
+  });
+const faceUrls = [
+  "./models/facecap.glb",
+  "https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/models/gltf/facecap.glb",
+  "https://threejs.org/examples/models/gltf/facecap.glb",
+];
+
+const setMorphListText = (text) => {
+  if (morphTargetsList) morphTargetsList.textContent = text;
+};
 
 if (visemeSelect) {
   visemeSelect.addEventListener("change", (event) => {
@@ -362,6 +593,94 @@ if (intensitySlider) {
     const current = visemeSelect?.value || externalViseme || "sil";
     applyVisemePose(current, externalIntensity);
   });
+}
+
+const loadFaceModel = async (idx = 0) => {
+  if (idx === 0) {
+    clearFaceModel();
+    setMorphListText("Loading FaceCap morph targets...");
+  }
+  if (idx >= faceUrls.length) {
+    console.error("Failed to load FaceCap model from three.js.");
+    setMorphListText("Failed to load FaceCap.");
+    return;
+  }
+  await meshoptReady;
+  loader.load(
+    faceUrls[idx],
+    (gltf) => {
+      const face = gltf.scene;
+      faceObject = face;
+      const box = new THREE.Box3().setFromObject(face);
+      const size = box.getSize(new THREE.Vector3());
+      const center = box.getCenter(new THREE.Vector3());
+      const targetHeight = 1.6;
+      const scale = size.y > 0 ? targetHeight / size.y : 1;
+
+      face.scale.setScalar(scale);
+      face.position.sub(center.multiplyScalar(scale));
+      face.position.add(orbitTarget);
+
+      scene.add(face);
+      const collected = new Set();
+      face.traverse((child) => {
+        if (child.isMesh && child.morphTargetDictionary && child.morphTargetInfluences) {
+          morphTargetMeshes.push(child);
+          const targetNames = Object.keys(child.morphTargetDictionary);
+          console.info("Loaded morph targets:", targetNames);
+          console.info(
+            "Mesh name:",
+            child.name || "(unnamed)",
+            "Morph count:",
+            targetNames.length
+          );
+          targetNames.forEach((name) => collected.add(name));
+        }
+      });
+      if (collected.size > 0) {
+        setMorphListText(Array.from(collected).sort().join(", "));
+      } else {
+        setMorphListText("FaceCap model has no morph targets.");
+      }
+      updateSphericalFromCamera();
+      updateCameraFromSpherical();
+      applyVisemePose(visemeSelect?.value || "sil", externalIntensity);
+    },
+    undefined,
+    (error) => {
+      console.error("Failed to load FaceCap model:", error);
+      loadFaceModel(idx + 1);
+    }
+  );
+};
+
+const setModelMode = (mode) => {
+  if (currentModelMode === mode) return;
+  currentModelMode = mode;
+  if (mode === "facecap") {
+    removeAidenModel();
+    loadFaceModel();
+  } else {
+    clearFaceModel();
+    setMorphListText("Aiden morph targets only.");
+    addAidenModel();
+  }
+};
+
+if (modelSelect) {
+  modelSelect.value = selectedModel;
+  modelSelect.addEventListener("change", () => {
+    const next = modelSelect.value;
+    window.localStorage?.setItem("aidenModel", next);
+    setModelMode(next);
+  });
+}
+
+if (useFaceModel) {
+  loadFaceModel();
+} else {
+  addAidenModel();
+  setMorphListText("Aiden morph targets only.");
 }
 
 function animate() {
@@ -407,7 +726,6 @@ window.aidenRigDebug = {
     return pendingBlendshapePose ? { ...pendingBlendshapePose } : null;
   },
 };
-
 function createGradientBackground() {
   const canvas = document.createElement("canvas");
   canvas.width = 1;

@@ -30,6 +30,7 @@ Open:
 - Web Audio API for playback timing
 - WebGPU/WASM via onnxruntime-web + transformers.js
 - http-server for local static hosting
+- TalkingHead is not a dependency, but its ARKit + OVR viseme specs inform our mapping approach. [TalkingHead](https://github.com/met4citizen/TalkingHead)
 
 ## Server vs Client Responsibilities
 Client-side (current spike):

@@ -1,11 +1,11 @@
-(function () {
-  const AidenModel = {
-    createAiden,
-    updateEyebrows,
-  };
+import * as THREE from "three";
 
-  window.AidenModel = AidenModel;
-})();
+const AidenModel = {
+  createAiden,
+  updateEyebrows,
+};
+
+window.AidenModel = AidenModel;
 
 function createAiden() {
   const group = new THREE.Group();

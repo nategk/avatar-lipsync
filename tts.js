@@ -20,6 +20,7 @@ let currentUrl = null;
 let rafId = null;
 let audioCtx = null;
 let lastSynthEnd = null;
+const VISEME_LEAD_MS = 40;
 
 function updateStatus(text) {
   if (ttsStatus) {
@@ -183,7 +184,7 @@ function scheduleVisemes(getTimeMs, audioEndCallback, onFirstViseme, endMs) {
   let firstHit = false;
 
   const step = () => {
-    const t = getTimeMs();
+    const t = getTimeMs() + VISEME_LEAD_MS;
     if (t < 0) {
       rafId = requestAnimationFrame(step);
       return;
