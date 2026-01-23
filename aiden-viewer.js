@@ -9,7 +9,8 @@ const camera = new THREE.PerspectiveCamera(
   0.1,
   100
 );
-camera.position.set(0, 1.3, 5.2);
+const defaultCameraPosition = new THREE.Vector3(0, 1.3, 5.2);
+camera.position.copy(defaultCameraPosition);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(window.devicePixelRatio);
@@ -18,7 +19,14 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 viewport.appendChild(renderer.domElement);
 
-camera.lookAt(0, 1.1, 0);
+const orbitTarget = new THREE.Vector3(0, 1.1, 0);
+const spherical = new THREE.Spherical();
+const minRadius = 2.2;
+const maxRadius = 10;
+
+renderer.domElement.style.touchAction = "none";
+updateSphericalFromCamera();
+updateCameraFromSpherical();
 
 scene.add(new THREE.AmbientLight(0xffffff, 0.55));
 
@@ -43,6 +51,7 @@ if (!model) {
 
 const aidenGroup = model?.group;
 const eyebrows = model?.parts?.eyebrows;
+const mouthMesh = model?.parts?.mouth;
 
 if (aidenGroup) {
   scene.add(aidenGroup);
@@ -53,10 +62,16 @@ const currentExpressions = {
   eyebrowTilt: 0,
 };
 
+const mouthSmoothing = 0.18;
+
 let externalViseme = null;
 let externalIntensity = 1.0;
 let pendingMouthPose = null;
 let pendingBlendshapePose = null;
+
+const visemeSelect = document.getElementById("viseme");
+const intensitySlider = document.getElementById("intensity");
+const intensityValue = document.getElementById("intensityValue");
 
 const OVR_VISEMES = new Set([
   "sil",
@@ -137,9 +152,55 @@ function normalizeViseme(viseme) {
   const stripped = raw.startsWith("viseme_") ? raw.slice(7) : raw;
   if (OVR_VISEMES.has(stripped)) return stripped;
   const lower = stripped.toLowerCase();
-  const title = lower.toUpperCase();
+  const upper = stripped.toUpperCase();
   if (OVR_VISEMES.has(lower)) return lower;
-  if (OVR_VISEMES.has(title)) return title;
+  if (OVR_VISEMES.has(upper)) return upper;
+
+  const aliasMap = {
+    aa: "aa",
+    ah: "aa",
+    ae: "aa",
+    ee: "E",
+    eh: "E",
+    ih: "I",
+    ix: "I",
+    iy: "I",
+    oo: "O",
+    oh: "O",
+    ow: "O",
+    ao: "O",
+    uu: "U",
+    uh: "U",
+    uw: "U",
+    mm: "PP",
+    bb: "PP",
+    pp: "PP",
+    ff: "FF",
+    vv: "FF",
+    th: "TH",
+    dh: "TH",
+    dd: "DD",
+    tt: "DD",
+    nd: "DD",
+    kk: "kk",
+    gg: "kk",
+    ch: "CH",
+    jh: "CH",
+    sh: "CH",
+    zh: "CH",
+    ss: "SS",
+    zz: "SS",
+    nn: "nn",
+    ng: "nn",
+    rr: "RR",
+    er: "RR",
+    sil: "sil",
+    sp: "sil",
+    pause: "sil",
+  };
+  if (aliasMap[lower]) return aliasMap[lower];
+  if (aliasMap[upper]) return aliasMap[upper];
+
   return "sil";
 }
 
@@ -149,23 +210,23 @@ const visemePoseMap = {
     brows: { eyebrowRaise: 0.05, eyebrowTilt: 0 },
   },
   PP: {
-    mouth: { jawOpen: 0, mouthClose: 1, mouthPucker: 0.1 },
+    mouth: { jawOpen: 0, mouthClose: 1, mouthPucker: 0.4, mouthPressLeft: 0.35, mouthPressRight: 0.35 },
     brows: { eyebrowRaise: 0.05, eyebrowTilt: 0 },
   },
   FF: {
-    mouth: { jawOpen: 0.2, mouthFunnel: 0.1, mouthClose: 0.2 },
+    mouth: { jawOpen: 0.05, mouthClose: 0.9, mouthPucker: 0.25, mouthPressLeft: 0.4, mouthPressRight: 0.4 },
     brows: { eyebrowRaise: 0.06, eyebrowTilt: 0 },
   },
   TH: {
-    mouth: { jawOpen: 0.45, tongueOut: 0.4, mouthPucker: 0.05 },
+    mouth: { jawOpen: 0.45, mouthPucker: 0.05 },
     brows: { eyebrowRaise: 0.1, eyebrowTilt: 0.02 },
   },
   DD: {
-    mouth: { jawOpen: 0.25, tongueOut: 0.2, mouthClose: 0.1 },
+    mouth: { jawOpen: 0.25, mouthClose: 0.1 },
     brows: { eyebrowRaise: 0.05, eyebrowTilt: 0 },
   },
   kk: {
-    mouth: { jawOpen: 0.25, tongueOut: 0.15, mouthClose: 0.05 },
+    mouth: { jawOpen: 0.25, mouthClose: 0.05 },
     brows: { eyebrowRaise: 0.05, eyebrowTilt: 0 },
   },
   CH: {
@@ -177,7 +238,7 @@ const visemePoseMap = {
     brows: { eyebrowRaise: 0.09, eyebrowTilt: 0.02 },
   },
   nn: {
-    mouth: { jawOpen: 0.15, tongueOut: 0.1, mouthClose: 0.05 },
+    mouth: { jawOpen: 0.15, mouthClose: 0.05 },
     brows: { eyebrowRaise: 0.05, eyebrowTilt: 0 },
   },
   RR: {
@@ -185,19 +246,26 @@ const visemePoseMap = {
     brows: { eyebrowRaise: 0.06, eyebrowTilt: 0.01 },
   },
   aa: {
-    mouth: { jawOpen: 0.7, mouthFunnel: 0.05 },
+    mouth: { jawOpen: 0.95, mouthFunnel: 0.1 },
     brows: { eyebrowRaise: 0.08, eyebrowTilt: 0.02 },
   },
   E: {
-    mouth: { jawOpen: 0.3, mouthSmileLeft: 0.35, mouthSmileRight: 0.35 },
-    brows: { eyebrowRaise: 0.12, eyebrowTilt: 0.02 },
+    mouth: {
+      jawOpen: 0.15,
+      mouthClose: 0.3,
+      mouthSmileLeft: 0.15,
+      mouthSmileRight: 0.15,
+      mouthStretchLeft: 0.55,
+      mouthStretchRight: 0.55,
+    },
+    brows: { eyebrowRaise: 0.02, eyebrowTilt: 0.08 },
   },
   I: {
     mouth: { jawOpen: 0.2, mouthSmileLeft: 0.25, mouthSmileRight: 0.25 },
     brows: { eyebrowRaise: 0.1, eyebrowTilt: 0.02 },
   },
   O: {
-    mouth: { jawOpen: 0.35, mouthPucker: 0.5, mouthFunnel: 0.3 },
+    mouth: { jawOpen: 0.45, mouthPucker: 0.9, mouthFunnel: 0.75 },
     brows: { eyebrowRaise: 0.06, eyebrowTilt: -0.01 },
   },
   U: {
@@ -226,13 +294,6 @@ function applyVisemePose(viseme, intensity) {
     mouthPressRight: (mouth.mouthPressRight || 0) * amt,
     mouthStretchLeft: (mouth.mouthStretchLeft || 0) * amt,
     mouthStretchRight: (mouth.mouthStretchRight || 0) * amt,
-    mouthDimpleLeft: (mouth.mouthDimpleLeft || 0) * amt,
-    mouthDimpleRight: (mouth.mouthDimpleRight || 0) * amt,
-    mouthRollLower: (mouth.mouthRollLower || 0) * amt,
-    mouthRollUpper: (mouth.mouthRollUpper || 0) * amt,
-    mouthShrugLower: (mouth.mouthShrugLower || 0) * amt,
-    mouthShrugUpper: (mouth.mouthShrugUpper || 0) * amt,
-    tongueOut: (mouth.tongueOut || 0) * amt,
   };
 
   currentExpressions.eyebrowRaise = brows.eyebrowRaise * amt;
@@ -260,9 +321,53 @@ function applyBlendshapePose(blendshapes, intensity = 1) {
   // TODO: Hook pendingBlendshapePose into the next mouth/face rig implementation.
 }
 
+function getMouthTargetValue(name) {
+  if (pendingBlendshapePose && name in pendingBlendshapePose) {
+    return pendingBlendshapePose[name];
+  }
+  if (pendingMouthPose && name in pendingMouthPose) {
+    return pendingMouthPose[name];
+  }
+  return 0;
+}
+
+function updateMouthRig() {
+  if (!mouthMesh?.morphTargetDictionary || !mouthMesh.morphTargetInfluences) return;
+  const dict = mouthMesh.morphTargetDictionary;
+  const influences = mouthMesh.morphTargetInfluences;
+  Object.keys(dict).forEach((name) => {
+    const target = getMouthTargetValue(name);
+    const idx = dict[name];
+    const current = influences[idx] || 0;
+    influences[idx] = THREE.MathUtils.lerp(current, target, mouthSmoothing);
+  });
+}
+
+applyVisemePose("sil", 1);
+
+if (visemeSelect) {
+  visemeSelect.addEventListener("change", (event) => {
+    const value = event.target.value;
+    applyVisemePose(value, externalIntensity);
+  });
+}
+
+if (intensitySlider) {
+  intensitySlider.addEventListener("input", (event) => {
+    const next = Number(event.target.value);
+    externalIntensity = Math.max(0, Math.min(1, next));
+    if (intensityValue) {
+      intensityValue.textContent = externalIntensity.toFixed(2);
+    }
+    const current = visemeSelect?.value || externalViseme || "sil";
+    applyVisemePose(current, externalIntensity);
+  });
+}
+
 function animate() {
   requestAnimationFrame(animate);
 
+  updateMouthRig();
   window.AidenModel?.updateEyebrows?.(eyebrows, currentExpressions);
   if (aidenGroup) {
     aidenGroup.rotation.y = Math.sin(Date.now() * 0.0005) * 0.08;
@@ -275,6 +380,7 @@ animate();
 window.addEventListener("resize", () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
+  updateCameraFromSpherical();
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
@@ -286,7 +392,7 @@ window.aidenVisemeDriver = {
   },
   clearViseme() {
     externalViseme = null;
-    applyVisemePose("sil", 0);
+    applyVisemePose("sil", 1);
   },
   setBlendshapes(blendshapes, amount = 1) {
     applyBlendshapePose(blendshapes, amount);
@@ -317,4 +423,80 @@ function createGradientBackground() {
   texture.magFilter = THREE.LinearFilter;
   texture.needsUpdate = true;
   return texture;
+}
+
+let isDragging = false;
+let isPanning = false;
+let lastX = 0;
+let lastY = 0;
+
+renderer.domElement.addEventListener("pointerdown", (event) => {
+  isDragging = true;
+  isPanning = event.button === 2 || event.shiftKey;
+  lastX = event.clientX;
+  lastY = event.clientY;
+  renderer.domElement.setPointerCapture(event.pointerId);
+});
+
+renderer.domElement.addEventListener("pointermove", (event) => {
+  if (!isDragging) return;
+  const deltaX = event.clientX - lastX;
+  const deltaY = event.clientY - lastY;
+  lastX = event.clientX;
+  lastY = event.clientY;
+
+  if (isPanning) {
+    const panSpeed = 0.0025 * spherical.radius;
+    const right = new THREE.Vector3().setFromMatrixColumn(camera.matrix, 0);
+    const up = new THREE.Vector3(0, 1, 0);
+    orbitTarget.addScaledVector(right, -deltaX * panSpeed);
+    orbitTarget.addScaledVector(up, deltaY * panSpeed);
+    updateCameraFromSpherical();
+    return;
+  }
+
+  const rotateSpeed = 0.005;
+  spherical.theta -= deltaX * rotateSpeed;
+  spherical.phi -= deltaY * rotateSpeed;
+  spherical.phi = THREE.MathUtils.clamp(spherical.phi, 0.2, Math.PI - 0.2);
+  updateCameraFromSpherical();
+});
+
+renderer.domElement.addEventListener("pointerup", (event) => {
+  isDragging = false;
+  isPanning = false;
+  renderer.domElement.releasePointerCapture(event.pointerId);
+});
+
+renderer.domElement.addEventListener("pointerleave", () => {
+  isDragging = false;
+  isPanning = false;
+});
+
+renderer.domElement.addEventListener(
+  "wheel",
+  (event) => {
+    event.preventDefault();
+    const zoomSpeed = 0.002;
+    spherical.radius *= 1 + event.deltaY * zoomSpeed;
+    spherical.radius = THREE.MathUtils.clamp(spherical.radius, minRadius, maxRadius);
+    updateCameraFromSpherical();
+  },
+  { passive: false }
+);
+
+renderer.domElement.addEventListener("contextmenu", (event) => {
+  event.preventDefault();
+});
+
+function updateSphericalFromCamera() {
+  const offset = camera.position.clone().sub(orbitTarget);
+  spherical.setFromVector3(offset);
+  spherical.radius = THREE.MathUtils.clamp(spherical.radius, minRadius, maxRadius);
+}
+
+function updateCameraFromSpherical() {
+  const offset = new THREE.Vector3().setFromSpherical(spherical);
+  camera.position.copy(orbitTarget).add(offset);
+  camera.lookAt(orbitTarget);
 }

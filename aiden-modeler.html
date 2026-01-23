@@ -146,7 +146,7 @@
     </div>
     <div class="note">
       Use the part toggles to remove pieces, explode to separate them, and morph
-      sliders to shape the eyebrows. Orbit to inspect the model.
+      sliders to shape the eyebrows and mouth. Orbit to inspect the model.
     </div>
 
     <div class="section">
@@ -176,6 +176,10 @@
           <input id="part-eyebrows" type="checkbox" checked />
           <label for="part-eyebrows">Eyebrows</label>
         </div>
+        <div class="row">
+          <input id="part-mouth" type="checkbox" checked />
+          <label for="part-mouth">Mouth</label>
+        </div>
       </div>
 
       <div class="control">
@@ -188,6 +192,7 @@
           <option value="glasses">Glasses</option>
           <option value="eyes">Eyes</option>
           <option value="eyebrows">Eyebrows</option>
+          <option value="mouth">Mouth</option>
         </select>
       </div>
     </div>
@@ -212,6 +217,18 @@
         <label for="brow-tilt">Tilt</label>
         <input id="brow-tilt" type="range" min="-0.3" max="0.3" step="0.01" value="0" />
         <div class="value" id="brow-tilt-value">0.00</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Mouth Morph Targets</h2>
+      <div class="note">
+        Cartoon mouth only: no teeth or tongue. Sliders map to ARKit-style
+        morph target names.
+      </div>
+      <div id="mouthControls" class="part-list"></div>
+      <div class="control">
+        <button id="resetMouth" type="button">Reset mouth</button>
       </div>
     </div>
 

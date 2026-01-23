@@ -175,7 +175,7 @@ async function normalizeAudioBuffer(audioData) {
   return null;
 }
 
-function scheduleVisemes(getTimeMs, audioEndCallback, onFirstViseme) {
+function scheduleVisemes(getTimeMs, audioEndCallback, onFirstViseme, endMs) {
   const visemes = audioEndCallback.visemes || [];
   const vtimes = audioEndCallback.vtimes || [];
   const vdurations = audioEndCallback.vdurations || [];
@@ -186,6 +186,12 @@ function scheduleVisemes(getTimeMs, audioEndCallback, onFirstViseme) {
     const t = getTimeMs();
     if (t < 0) {
       rafId = requestAnimationFrame(step);
+      return;
+    }
+    if (Number.isFinite(endMs) && t >= endMs) {
+      if (window.aidenVisemeDriver) {
+        window.aidenVisemeDriver.clearViseme();
+      }
       return;
     }
     while (index < vtimes.length - 1 && t >= vtimes[index] + vdurations[index]) {
@@ -246,7 +252,8 @@ async function playWithVisemes(audioData) {
           scheduleVisemes(
             () => (context.currentTime - startTime) * 1000,
             payload,
-            () => setPerf(perfVisemeStart, "First viseme", performance.now() - playbackStart)
+            () => setPerf(perfVisemeStart, "First viseme", performance.now() - playbackStart),
+            decoded.duration * 1000
           );
 
           source.onended = () => {
@@ -302,7 +309,8 @@ function fallbackToHtmlAudio(audioBuffer, payload, resolve, playbackStart) {
     scheduleVisemes(
       () => audio.currentTime * 1000,
       payload,
-      () => setPerf(perfVisemeStart, "First viseme", performance.now() - playbackStart)
+      () => setPerf(perfVisemeStart, "First viseme", performance.now() - playbackStart),
+      Number.isFinite(audio.duration) ? audio.duration * 1000 : undefined
     );
   });
 

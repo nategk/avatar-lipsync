@@ -124,8 +124,38 @@
       <a href="./aiden-modeler.html">Open Aiden modeler</a>
     </div>
     <div class="note">
-      Mouth rig is removed for now. This view keeps the TTS + viseme schedule
-      flow so we can later hook visemes into a new mouth system.
+      Cartoon mouth rig driven by visemes + ARKit blendshape stubs. No teeth or
+      tongue — we rely on shape, curvature, smiles, and frowns.
+    </div>
+
+    <div class="control">
+      <label for="viseme">Viseme</label>
+      <select id="viseme">
+        <option value="sil">sil (rest)</option>
+        <option value="AA">AA (ah)</option>
+        <option value="EE">EE (ee)</option>
+        <option value="OO">OO (oh)</option>
+        <option value="MM">MM (m/b/p)</option>
+        <option value="FF">FF (f/v)</option>
+        <option value="TH">TH</option>
+        <option value="CH">CH</option>
+        <option value="SS">SS (s/z)</option>
+        <option value="DD">DD (d/t)</option>
+        <option value="kk">kk (k/g)</option>
+        <option value="nn">nn (n)</option>
+        <option value="RR">RR (r)</option>
+        <option value="aa">aa (a)</option>
+        <option value="E">E (eh)</option>
+        <option value="I">I (ih)</option>
+        <option value="O">O (oh)</option>
+        <option value="U">U (oo)</option>
+      </select>
+    </div>
+
+    <div class="control">
+      <label for="intensity">Intensity</label>
+      <input id="intensity" type="range" min="0" max="1" step="0.01" value="1" />
+      <div class="value" id="intensityValue">1.00</div>
     </div>
 
     <div class="control">

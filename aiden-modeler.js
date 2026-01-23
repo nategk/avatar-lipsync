@@ -77,6 +77,8 @@ const browDefaults = {
   tilt: 0,
 };
 
+const mouthControls = document.getElementById("mouthControls");
+const resetMouth = document.getElementById("resetMouth");
 const resetCamera = document.getElementById("resetCamera");
 const toggleWireframe = document.getElementById("toggleWireframe");
 const toggleGrid = document.getElementById("toggleGrid");
@@ -91,6 +93,7 @@ const partEntries = [
   { id: "glasses", object: safeParts.glasses },
   { id: "eyes", object: safeParts.eyes },
   { id: "eyebrows", object: safeParts.eyebrows },
+  { id: "mouth", object: safeParts.mouth },
 ].filter((entry) => entry.object);
 
 partEntries.forEach(({ object }) => {
@@ -106,6 +109,7 @@ Object.entries({
   "part-glasses": "glasses",
   "part-eyes": "eyes",
   "part-eyebrows": "eyebrows",
+  "part-mouth": "mouth",
 }).forEach(([inputId, partId]) => {
   const input = document.getElementById(inputId);
   if (!input) return;
@@ -139,6 +143,8 @@ Object.entries(browDefaults).forEach(([name, value]) => {
 });
 updateEyebrows();
 
+buildMouthControls();
+
 toggleWireframe.addEventListener("change", (event) => {
   setWireframe(event.target.checked);
 });
@@ -170,6 +176,65 @@ function updateEyebrows() {
     eyebrowRaise: raise,
     eyebrowTilt: tilt,
   });
+}
+
+function buildMouthControls() {
+  const mouth = safeParts.mouth;
+  if (!mouthControls || !mouth?.morphTargetDictionary || !mouth?.morphTargetInfluences) {
+    if (mouthControls) {
+      mouthControls.textContent = "Mouth morph targets not available.";
+    }
+    if (resetMouth) {
+      resetMouth.disabled = true;
+    }
+    return;
+  }
+
+  const entries = Object.entries(mouth.morphTargetDictionary).sort((a, b) =>
+    a[0].localeCompare(b[0])
+  );
+  const sliders = new Map();
+
+  entries.forEach(([name, index]) => {
+    const row = document.createElement("div");
+    row.className = "control";
+
+    const label = document.createElement("label");
+    label.setAttribute("for", `mouth-${name}`);
+    label.textContent = name;
+
+    const input = document.createElement("input");
+    input.type = "range";
+    input.min = "0";
+    input.max = "1";
+    input.step = "0.01";
+    input.value = (mouth.morphTargetInfluences[index] || 0).toFixed(2);
+    input.id = `mouth-${name}`;
+
+    const value = document.createElement("div");
+    value.className = "value";
+    value.textContent = Number(input.value).toFixed(2);
+
+    input.addEventListener("input", () => {
+      const next = Number(input.value);
+      mouth.morphTargetInfluences[index] = next;
+      value.textContent = next.toFixed(2);
+    });
+
+    row.append(label, input, value);
+    mouthControls.appendChild(row);
+    sliders.set(name, { input, value, index });
+  });
+
+  if (resetMouth) {
+    resetMouth.addEventListener("click", () => {
+      sliders.forEach(({ input, value, index }) => {
+        input.value = "0";
+        value.textContent = "0.00";
+        mouth.morphTargetInfluences[index] = 0;
+      });
+    });
+  }
 }
 
 function applyExplode(amount) {

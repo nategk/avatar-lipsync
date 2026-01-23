@@ -48,7 +48,10 @@ function createAiden() {
   const eyebrows = createEyebrows();
   eyebrows.position.set(0, 1.98, 0.86);
 
-  group.add(torso, neck, headMesh, glasses, eyes, eyebrows);
+  const mouth = createMouth();
+  mouth.position.set(0, 1.34, 0.93);
+
+  group.add(torso, neck, headMesh, glasses, eyes, eyebrows, mouth);
 
   return {
     group,
@@ -60,6 +63,7 @@ function createAiden() {
       glasses,
       eyes,
       eyebrows,
+      mouth,
     },
   };
 }
@@ -175,4 +179,128 @@ function updateEyebrows(eyebrows, influences) {
   right.position.y = base.rightPos.y + raise * 0.08;
   left.rotation.z = base.leftRotZ + tilt;
   right.rotation.z = base.rightRotZ - tilt;
+}
+
+function createMouth() {
+  const width = 0.52;
+  const height = 0.22;
+  const shape = new THREE.Shape();
+  shape.absellipse(0, 0, width / 2, height / 2, 0, Math.PI * 2, false, 0);
+  const geometry = new THREE.ShapeGeometry(shape, 32);
+  const position = geometry.attributes.position;
+  const base = position.array.slice();
+  const halfW = width / 2;
+  const halfH = height / 2;
+
+  const morphs = [];
+  const morphNames = [];
+
+  const addMorph = (name, transform) => {
+    const next = base.slice();
+    for (let i = 0; i < next.length; i += 3) {
+      const x = base[i];
+      const y = base[i + 1];
+      const z = base[i + 2];
+      const vec = transform(x, y, z);
+      next[i] = vec.x;
+      next[i + 1] = vec.y;
+      next[i + 2] = vec.z;
+    }
+    const attr = new THREE.Float32BufferAttribute(next, 3);
+    attr.name = name;
+    morphs.push(attr);
+    morphNames.push(name);
+  };
+
+  const edgeFalloff = (x, y) => {
+    const nx = 1 - Math.min(1, Math.abs(x) / halfW);
+    const ny = 1 - Math.min(1, Math.abs(y) / halfH);
+    return Math.max(0, nx * ny);
+  };
+
+  addMorph("jawOpen", (x, y, z) => {
+    const weight = edgeFalloff(x, y);
+    const lower = y < 0 ? 1 : 0.25;
+    return { x, y: y - 0.28 * weight * lower, z: z + 0.03 * weight };
+  });
+
+  addMorph("mouthClose", (x, y, z) => ({
+    x,
+    y: y * 0.1,
+    z: z - 0.03 * edgeFalloff(x, y),
+  }));
+
+  addMorph("mouthFunnel", (x, y, z) => {
+    const weight = edgeFalloff(x, y);
+    return { x: x * (1 - 0.82 * weight), y: y * 0.82, z: z + 0.12 * weight };
+  });
+
+  addMorph("mouthPucker", (x, y, z) => {
+    const weight = edgeFalloff(x, y);
+    return { x: x * (1 - 0.5 * weight), y: y * 0.75, z: z + 0.12 * weight };
+  });
+
+  addMorph("mouthSmileLeft", (x, y, z) => {
+    const weight = edgeFalloff(x, y);
+    const lift = x < 0 ? 0.11 * weight : 0;
+    return { x, y: y + lift, z };
+  });
+
+  addMorph("mouthSmileRight", (x, y, z) => {
+    const weight = edgeFalloff(x, y);
+    const lift = x > 0 ? 0.11 * weight : 0;
+    return { x, y: y + lift, z };
+  });
+
+  addMorph("mouthFrownLeft", (x, y, z) => {
+    const weight = edgeFalloff(x, y);
+    const drop = x < 0 ? 0.18 * weight : 0;
+    return { x, y: y - drop, z };
+  });
+
+  addMorph("mouthFrownRight", (x, y, z) => {
+    const weight = edgeFalloff(x, y);
+    const drop = x > 0 ? 0.18 * weight : 0;
+    return { x, y: y - drop, z };
+  });
+
+  addMorph("mouthStretchLeft", (x, y, z) => {
+    const weight = edgeFalloff(x, y);
+    const stretch = x < 0 ? -0.18 * weight : 0;
+    return { x: x + stretch, y, z };
+  });
+
+  addMorph("mouthStretchRight", (x, y, z) => {
+    const weight = edgeFalloff(x, y);
+    const stretch = x > 0 ? 0.18 * weight : 0;
+    return { x: x + stretch, y, z };
+  });
+
+  addMorph("mouthPressLeft", (x, y, z) => {
+    const weight = edgeFalloff(x, y);
+    const press = x < 0 ? 0.3 : 1;
+    return { x, y: y * press, z: z - 0.03 * weight };
+  });
+
+  addMorph("mouthPressRight", (x, y, z) => {
+    const weight = edgeFalloff(x, y);
+    const press = x > 0 ? 0.3 : 1;
+    return { x, y: y * press, z: z - 0.03 * weight };
+  });
+
+  geometry.morphAttributes.position = morphs;
+
+  const material = new THREE.MeshStandardMaterial({
+    color: 0x1c1410,
+    roughness: 0.7,
+    metalness: 0,
+    side: THREE.DoubleSide,
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  mesh.updateMorphTargets();
+  mesh.userData.morphTargetNames = morphNames;
+
+  return mesh;
 }
