@@ -50,7 +50,7 @@ rimLight.position.set(-2, 3, -5);
 scene.add(rimLight);
 
 const params = new URLSearchParams(window.location.search);
-const storedModel = window.localStorage?.getItem("aidenModel") || "aiden";
+const storedModel = window.localStorage?.getItem("selectedModel") || "aiden";
 const selectedModel = params.get("model") || storedModel;
 const useFaceModel = selectedModel === "facecap";
 const model = window.AidenModel?.createAiden?.();
@@ -72,6 +72,7 @@ const addAidenModel = () => {
   morphTargetMeshes = [];
   if (mouthMesh) {
     morphTargetMeshes.push(mouthMesh);
+    updateAidenMorphTargets();
   }
 };
 
@@ -106,6 +107,10 @@ const intensitySlider = document.getElementById("intensity");
 const intensityValue = document.getElementById("intensityValue");
 const modelSelect = document.getElementById("modelSelect");
 const morphTargetsList = document.getElementById("morphTargetsList");
+const MODEL_INFO = {
+  aiden: { displayName: "Aiden (cartoon)" },
+  facecap: { displayName: "FaceCap (morph targets)" },
+};
 const FACE_CAP_TARGET_NAMES = [
   "browInnerUp",
   "browDown_L",
@@ -316,44 +321,65 @@ function normalizeViseme(viseme) {
 }
 
 const visemePoseMap = {
-  sil: {
-    mouth: { jawOpen: 0, mouthClose: 0.8, mouthFunnel: 0, mouthPucker: 0 },
-    brows: { eyebrowRaise: 0.05, eyebrowTilt: 0 },
+  AA: {
+    mouth: { jawOpen: 0.98, mouthFunnel: 0.1, mouthPucker: 0.05 },
+    brows: { eyebrowRaise: 0.08, eyebrowTilt: 0.02 },
   },
-  PP: {
-    mouth: { jawOpen: 0, mouthClose: 1, mouthPucker: 0.4, mouthPressLeft: 0.35, mouthPressRight: 0.35 },
-    brows: { eyebrowRaise: 0.05, eyebrowTilt: 0 },
-  },
-  FF: {
-    mouth: { jawOpen: 0.05, mouthClose: 0.9, mouthPucker: 0.25, mouthPressLeft: 0.4, mouthPressRight: 0.4 },
-    brows: { eyebrowRaise: 0.06, eyebrowTilt: 0 },
-  },
-  TH: {
-    mouth: { jawOpen: 0.45, mouthPucker: 0.05 },
+  EE: {
+    mouth: {
+      jawOpen: 0.25,
+      mouthClose: 0.15,
+      mouthStretchLeft: 0.6,
+      mouthStretchRight: 0.6,
+      mouthSmileLeft: 0.25,
+      mouthSmileRight: 0.25,
+    },
     brows: { eyebrowRaise: 0.1, eyebrowTilt: 0.02 },
   },
+  OO: {
+    mouth: { jawOpen: 0.6, mouthPucker: 0.9, mouthFunnel: 0.75 },
+    brows: { eyebrowRaise: 0.05, eyebrowTilt: -0.02 },
+  },
+  MM: {
+    mouth: { jawOpen: 0, mouthClose: 1, mouthPressLeft: 0.4, mouthPressRight: 0.4 },
+    brows: { eyebrowRaise: 0.04, eyebrowTilt: 0 },
+  },
+  FF: {
+    mouth: {
+      jawOpen: 0.05,
+      mouthClose: 0.88,
+      mouthPucker: 0.35,
+      mouthPressLeft: 0.45,
+      mouthPressRight: 0.45,
+    },
+    brows: { eyebrowRaise: 0.05, eyebrowTilt: 0.02 },
+  },
+  TH: {
+    mouth: { jawOpen: 0.3, mouthPucker: 0.1, mouthFunnel: 0.1 },
+    brows: { eyebrowRaise: 0.1, eyebrowTilt: 0.05 },
+  },
   DD: {
-    mouth: { jawOpen: 0.25, mouthClose: 0.1 },
-    brows: { eyebrowRaise: 0.05, eyebrowTilt: 0 },
+    mouth: { jawOpen: 0.4, mouthClose: 0.15 },
+    brows: { eyebrowRaise: 0.06, eyebrowTilt: 0 },
   },
   kk: {
-    mouth: { jawOpen: 0.25, mouthClose: 0.05 },
-    brows: { eyebrowRaise: 0.05, eyebrowTilt: 0 },
+    mouth: { jawOpen: 0.35, mouthClose: 0.15 },
+    brows: { eyebrowRaise: 0.05, eyebrowTilt: 0.01 },
   },
   CH: {
-    mouth: { jawOpen: 0.4, mouthFunnel: 0.2, mouthPucker: 0.15 },
+    mouth: { jawOpen: 0.45, mouthFunnel: 0.25, mouthPucker: 0.15 },
     brows: { eyebrowRaise: 0.08, eyebrowTilt: 0.01 },
   },
   SS: {
-    mouth: { jawOpen: 0.2, mouthStretchLeft: 0.3, mouthStretchRight: 0.3 },
-    brows: { eyebrowRaise: 0.09, eyebrowTilt: 0.02 },
+    mouth: { jawOpen: 0.18, mouthStretchLeft: 0.34, mouthStretchRight: 0.34 },
+    brows: { eyebrowRaise: 0.06, eyebrowTilt: 0.01 },
   },
   nn: {
-    mouth: { jawOpen: 0.15, mouthClose: 0.05 },
+    mouth: { jawOpen: 0.2, mouthClose: 0.1 },
     brows: { eyebrowRaise: 0.05, eyebrowTilt: 0 },
   },
   RR: {
-    mouth: { jawOpen: 0.3, mouthPucker: 0.2 },
+    mouth: { jawOpen: 0.35, mouthPucker: 0.2 },
     brows: { eyebrowRaise: 0.06, eyebrowTilt: 0.01 },
   },
   aa: {
@@ -362,26 +388,34 @@ const visemePoseMap = {
   },
   E: {
     mouth: {
-      jawOpen: 0.15,
-      mouthClose: 0.3,
-      mouthSmileLeft: 0.15,
-      mouthSmileRight: 0.15,
-      mouthStretchLeft: 0.55,
-      mouthStretchRight: 0.55,
+      jawOpen: 0.2,
+      mouthClose: 0.25,
+      mouthSmileLeft: 0.2,
+      mouthSmileRight: 0.2,
+      mouthStretchLeft: 0.5,
+      mouthStretchRight: 0.5,
     },
-    brows: { eyebrowRaise: 0.02, eyebrowTilt: 0.08 },
+    brows: { eyebrowRaise: 0.07, eyebrowTilt: 0.05 },
   },
   I: {
-    mouth: { jawOpen: 0.2, mouthSmileLeft: 0.25, mouthSmileRight: 0.25 },
+    mouth: {
+      jawOpen: 0.18,
+      mouthSmileLeft: 0.28,
+      mouthSmileRight: 0.28,
+    },
     brows: { eyebrowRaise: 0.1, eyebrowTilt: 0.02 },
   },
   O: {
-    mouth: { jawOpen: 0.45, mouthPucker: 0.9, mouthFunnel: 0.75 },
-    brows: { eyebrowRaise: 0.06, eyebrowTilt: -0.01 },
+    mouth: { jawOpen: 0.5, mouthPucker: 0.85, mouthFunnel: 0.7 },
+    brows: { eyebrowRaise: 0.05, eyebrowTilt: -0.01 },
   },
   U: {
-    mouth: { jawOpen: 0.25, mouthPucker: 0.6, mouthFunnel: 0.25 },
-    brows: { eyebrowRaise: 0.05, eyebrowTilt: -0.01 },
+    mouth: { jawOpen: 0.3, mouthPucker: 0.6, mouthFunnel: 0.3 },
+    brows: { eyebrowRaise: 0.04, eyebrowTilt: -0.01 },
+  },
+  sil: {
+    mouth: { jawOpen: 0, mouthClose: 0.2 },
+    brows: { eyebrowRaise: 0.02, eyebrowTilt: 0 },
   },
 };
 
@@ -576,6 +610,30 @@ const setMorphListText = (text) => {
   if (morphTargetsList) morphTargetsList.textContent = text;
 };
 
+function getModelDisplayName(key) {
+  return MODEL_INFO[key]?.displayName || "Model";
+}
+
+function showMorphTargetsList(names, fallback, modelKey = currentModelMode) {
+  if (!morphTargetsList) return;
+  if (Array.isArray(names) && names.length) {
+    morphTargetsList.textContent = names.join(", ");
+    return;
+  }
+  const modelName = getModelDisplayName(modelKey);
+  morphTargetsList.textContent =
+    fallback || `No morph targets available for ${modelName}.`;
+}
+
+function updateAidenMorphTargets() {
+  if (!mouthMesh || !mouthMesh.morphTargetDictionary) {
+    showMorphTargetsList([], null, "aiden");
+    return;
+  }
+  const names = Object.keys(mouthMesh.morphTargetDictionary).sort();
+  showMorphTargetsList(names, null, "aiden");
+}
+
 if (visemeSelect) {
   visemeSelect.addEventListener("change", (event) => {
     const value = event.target.value;
@@ -637,11 +695,10 @@ const loadFaceModel = async (idx = 0) => {
           targetNames.forEach((name) => collected.add(name));
         }
       });
-      if (collected.size > 0) {
-        setMorphListText(Array.from(collected).sort().join(", "));
-      } else {
-        setMorphListText("FaceCap model has no morph targets.");
-      }
+      showMorphTargetsList(
+        Array.from(collected).sort(),
+        "FaceCap model has no morph targets."
+      );
       updateSphericalFromCamera();
       updateCameraFromSpherical();
       applyVisemePose(visemeSelect?.value || "sil", externalIntensity);
@@ -662,7 +719,7 @@ const setModelMode = (mode) => {
     loadFaceModel();
   } else {
     clearFaceModel();
-    setMorphListText("Aiden morph targets only.");
+    updateAidenMorphTargets();
     addAidenModel();
   }
 };
@@ -671,7 +728,7 @@ if (modelSelect) {
   modelSelect.value = selectedModel;
   modelSelect.addEventListener("change", () => {
     const next = modelSelect.value;
-    window.localStorage?.setItem("aidenModel", next);
+    window.localStorage?.setItem("selectedModel", next);
     setModelMode(next);
   });
 }
@@ -680,7 +737,6 @@ if (useFaceModel) {
   loadFaceModel();
 } else {
   addAidenModel();
-  setMorphListText("Aiden morph targets only.");
 }
 
 function animate() {
