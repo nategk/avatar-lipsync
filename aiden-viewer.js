@@ -6,10 +6,7 @@ import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
 import faceCapVisemeMapping, {
   ARKIT_BLENDSHAPES,
   FACE_CAP_REST_STATE,
-} from "./data/facecap-viseme-mapping.js";
-
-const defaultFaceCapVisemeMapping = JSON.parse(JSON.stringify(faceCapVisemeMapping));
-const VISME_TUNING_KEY = "facecapVisemeTuning";
+} from "./data/viseme-mapping.js";
 
 const viewport = document.getElementById("viewport");
 const scene = new THREE.Scene();
@@ -119,9 +116,11 @@ const morphTargetsList = document.getElementById("morphTargetsList");
 const morphTargetsWindow = document.querySelector(".target-window");
 const morphTargetsHeader = document.querySelector(".target-window__header");
 const visemeTunerList = document.getElementById("visemeTunerList");
-const visemeSaveTuningBtn = document.getElementById("saveVisemeTuning");
-const visemeResetTuningBtn = document.getElementById("resetVisemeTuning");
 const visemeTunerStatus = document.getElementById("visemeTunerStatus");
+const saveVisemeFileBtn = document.getElementById("saveVisemeToFile");
+const visemeFileStatus = document.getElementById("visemeFileStatus");
+const VISME_MAPPING_SERVER_URL = "http://localhost:3001/viseme-mapping";
+const visemePanelTitle = document.getElementById("visemePanelTitle");
 const visemePanel = document.getElementById("visemePanel");
 const MODEL_INFO = {
   aiden: { displayName: "Aiden (cartoon)" },
@@ -378,19 +377,6 @@ function setVisemeOverride(viseme, group, key, value) {
   const overrides = getVisemeOverrides(viseme);
   overrides[group] = overrides[group] || {};
   overrides[group][key] = value;
-}
-
-function applyStoredVisemeOverrides(viseme, definition) {
-  if (definition.mouth) {
-    Object.entries(definition.mouth).forEach(([key, value]) => {
-      setVisemeOverride(viseme, "mouth", key, value);
-    });
-  }
-  if (definition.brows) {
-    Object.entries(definition.brows).forEach(([key, value]) => {
-      setVisemeOverride(viseme, "brows", key, value);
-    });
-  }
 }
 
 function getVisemeOverride(viseme, group, key) {
@@ -669,8 +655,10 @@ function categorizeBlendshape(name) {
 
 function renderVisemeTuner(viseme) {
   const normalizedViseme = normalizeViseme(viseme);
-  const isRestViseme = normalizedViseme === "sil";
   currentTunerViseme = normalizedViseme;
+  if (visemePanelTitle) {
+    visemePanelTitle.textContent = `${normalizedViseme} tuning`;
+  }
   if (!visemeTunerList) return;
   visemeTunerList.innerHTML = "";
   let hasRows = false;
@@ -698,13 +686,8 @@ function renderVisemeTuner(viseme) {
     slider.min = "0";
     slider.max = "1";
     slider.step = "0.01";
-    const restValue = isRestViseme
-      ? 0
-      : (group === "brows"
-          ? FACE_CAP_REST_STATE.brows[canonical]
-          : FACE_CAP_REST_STATE.mouth[canonical]) ?? 0;
     const overrideValue = getVisemeOverride(normalizedViseme, group, canonical);
-    const value = entry[group]?.[canonical] ?? overrideValue ?? restValue;
+    const value = entry[group]?.[canonical] ?? overrideValue ?? 0;
     slider.value = String(value);
     slider.dataset.group = group;
     slider.dataset.canonical = canonical;
@@ -737,9 +720,8 @@ function renderVisemeTuner(viseme) {
   }
 }
 
-loadVisemeTuning();
 renderVisemeTuner(currentTunerViseme);
-setVisemePanelVisibility(false);
+setVisemePanelVisibility(true);
 applyVisemePose(currentTunerViseme, externalIntensity);
 
 function getVisemeEntry(viseme) {
@@ -749,29 +731,7 @@ function getVisemeEntry(viseme) {
   }
   return faceCapVisemeMapping[normalized];
 }
-
-function resetVisemeTuning() {
-  Object.keys(faceCapVisemeMapping).forEach((viseme) => {
-    const definition = defaultFaceCapVisemeMapping[viseme];
-    if (!definition) return;
-    faceCapVisemeMapping[viseme].mouth = { ...definition.mouth };
-    faceCapVisemeMapping[viseme].brows = { ...definition.brows };
-  });
-  Object.keys(customVisemeOverrides).forEach((key) => {
-    delete customVisemeOverrides[key];
-  });
-  if (window.localStorage) {
-    window.localStorage.removeItem(VISME_TUNING_KEY);
-  }
-  visemeTunerDirty = false;
-  if (visemeTunerStatus) {
-    visemeTunerStatus.textContent = "Reset to defaults";
-  }
-  renderVisemeTuner(currentTunerViseme);
-}
-
-function saveVisemeTuning() {
-  if (!window.localStorage) return;
+function collectVisemeMappingPayload() {
   const payload = {};
   Object.entries(faceCapVisemeMapping).forEach(([viseme, definition]) => {
     payload[viseme] = {
@@ -779,31 +739,38 @@ function saveVisemeTuning() {
       brows: { ...definition.brows },
     };
   });
-  window.localStorage.setItem(VISME_TUNING_KEY, JSON.stringify(payload));
-  visemeTunerDirty = false;
-  if (visemeTunerStatus) {
-    visemeTunerStatus.textContent = "Saved";
-  }
+  return payload;
 }
 
-function loadVisemeTuning() {
-  if (!window.localStorage) return;
-  const stored = window.localStorage.getItem(VISME_TUNING_KEY);
-  if (!stored) return;
+async function saveVisemeMappingToFile() {
+  if (!saveVisemeFileBtn) return;
+  if (visemeFileStatus) {
+    visemeFileStatus.textContent = "Writing to file...";
+  }
+  saveVisemeFileBtn.disabled = true;
   try {
-    const overrides = JSON.parse(stored);
-    Object.entries(overrides).forEach(([viseme, definition]) => {
-      const entry = getVisemeEntry(viseme);
-        if (definition.mouth) {
-          entry.mouth = { ...entry.mouth, ...definition.mouth };
-        }
-        if (definition.brows) {
-          entry.brows = { ...entry.brows, ...definition.brows };
-        }
-        applyStoredVisemeOverrides(viseme, definition);
+    const response = await fetch(VISME_MAPPING_SERVER_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(collectVisemeMappingPayload()),
     });
+    const json = await response.json().catch(() => null);
+    if (response.ok && json?.success) {
+      if (visemeFileStatus) {
+        visemeFileStatus.textContent = "Saved to file";
+      }
+    } else {
+      if (visemeFileStatus) {
+        const message = json?.error || response.statusText || "Unknown error";
+        visemeFileStatus.textContent = `File save failed: ${message}`;
+      }
+    }
   } catch (error) {
-    console.warn("Failed to parse viseme tuning overrides", error);
+    if (visemeFileStatus) {
+      visemeFileStatus.textContent = `File save failed: ${error.message}`;
+    }
+  } finally {
+    saveVisemeFileBtn.disabled = false;
   }
 }
 
@@ -864,12 +831,8 @@ if (visemeSelect) {
   });
 }
 
-if (visemeSaveTuningBtn) {
-  visemeSaveTuningBtn.addEventListener("click", saveVisemeTuning);
-}
-
-if (visemeResetTuningBtn) {
-  visemeResetTuningBtn.addEventListener("click", resetVisemeTuning);
+if (saveVisemeFileBtn) {
+  saveVisemeFileBtn.addEventListener("click", saveVisemeMappingToFile);
 }
 
 const loadFaceModel = async (idx = 0) => {

@@ -13,10 +13,15 @@ Animation or 3D model quality. They're just quick references made for testing th
 - Build assets: `npm run build`
 - Build + run server: `npm run dev`
 - Or run server only: `npm run start` (assumes assets already built)
+- Optional mapping server: `npm run mapping-server` (used internally by `start`/`dev`, but you can run it standalone if you need just the file writer)
 
 Open:
 - `http://localhost:8000/index.html` for realtime lipsync evaluation
 - `http://localhost:8000/aiden-modeler.html` for model evaluation
+
+### Persisting viseme tuning to source
+- `npm run start` and `npm run dev` automatically run the optional mapping server alongside the static host, so the **Write tuning to file** button can persist settings to `data/viseme-mapping.js`.
+- If you ever want the mapping server by itself (e.g., for a quick edit), run `npm run mapping-server`. It listens on `localhost:3001` and overwrites `data/viseme-mapping.js` with the current mapping (rest state preserved).
 
 ## Architecture (High Level)
 - Browser renders the Aiden 3D model and applies viseme-driven morph targets.

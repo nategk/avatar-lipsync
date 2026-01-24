@@ -30,6 +30,44 @@ async function download(url, dest) {
   return dest;
 }
 
+async function fileExists(dest) {
+  try {
+    await stat(dest);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function shouldDownload(url, dest) {
+  if (!(await fileExists(dest))) {
+    return true;
+  }
+  try {
+    const response = await fetch(url, { method: "HEAD" });
+    if (!response.ok) {
+      return true;
+    }
+    const length = Number(response.headers.get("content-length") ?? "0");
+    if (length > 0) {
+      const stats = await stat(dest);
+      if (stats.size === length) {
+        return false;
+      }
+    }
+  } catch {
+    return true;
+  }
+  return true;
+}
+
+async function downloadIfNeeded(url, dest) {
+  if (!(await shouldDownload(url, dest))) {
+    return dest;
+  }
+  return download(url, dest);
+}
+
 async function downloadJson(url) {
   const response = await fetch(url);
   if (!response.ok) {
@@ -75,7 +113,7 @@ async function downloadTransformersAssets() {
   try {
     await stat(path.join(transformersDir, "transformers.bundle.mjs"));
   } catch {
-    await download(
+    await downloadIfNeeded(
       `https://cdn.jsdelivr.net/npm/@huggingface/transformers@${TRANSFORMERS_VERSION}/dist/transformers.web.js`,
       path.join(transformersDir, "transformers.bundle.mjs")
     );
@@ -83,12 +121,12 @@ async function downloadTransformersAssets() {
 
   const copied = await copyWasmAssetsFromNodeModules();
   if (!copied) {
-    await download(
+    await downloadIfNeeded(
       `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/ort-wasm-simd-threaded.jsep.wasm`,
       path.join(transformersDir, "ort-wasm-simd-threaded.jsep.wasm")
     );
 
-    await download(
+    await downloadIfNeeded(
       `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/ort-wasm-simd-threaded.wasm`,
       path.join(transformersDir, "ort-wasm-simd-threaded.wasm")
     );
@@ -112,7 +150,7 @@ async function downloadModelAssets() {
   for (const filename of files) {
     const url = `https://huggingface.co/${MODEL_REPO}/resolve/main/${filename}`;
     const dest = path.join(modelDir, filename);
-    await download(url, dest);
+    await downloadIfNeeded(url, dest);
   }
 }
 
@@ -132,7 +170,7 @@ async function downloadVoiceAssets() {
     }
     const url = `https://huggingface.co/${VOICE_REPO}/resolve/main/${filename}`;
     const dest = path.join(voicesDir, `${voice}.bin`);
-    await download(url, dest);
+    await downloadIfNeeded(url, dest);
   }
 }
 

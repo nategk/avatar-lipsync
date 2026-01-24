@@ -1,18 +1,21 @@
 {
   "name": "sable-avatar",
   "version": "0.1.0",
+  "type": "module",
   "private": true,
   "description": "Server-hosted prototype for Aiden lipsync and modeler",
   "scripts": {
-    "start": "http-server . -p 8000 -c-1",
+    "serve": "http-server . -p 8000 -c-1",
+    "start": "concurrently \"npm run serve\" \"npm run mapping-server\"",
     "build": "npm run download-tts && npm run bundle-tts",
-    "dev": "npm run build && npm run serve",
+    "dev": "npm run build && npm run start",
+    "mapping-server": "node scripts/viseme-mapping-server.mjs",
     "download-tts": "node scripts/download-headtts-assets.mjs",
-    "bundle-tts": "node scripts/bundle-transformers.mjs",
-    "serve": "http-server . -p 8000 -c-1"
+    "bundle-tts": "node scripts/bundle-transformers.mjs"
   },
   "devDependencies": {
     "@huggingface/transformers": "3.8.1",
+    "concurrently": "^9.2.1",
     "esbuild": "0.24.0",
     "http-server": "14.1.1",
     "onnxruntime-web": "1.22.0-dev.20250409-89f8206ba4"
