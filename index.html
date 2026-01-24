@@ -235,6 +235,9 @@
       border: 1px solid rgba(255, 255, 255, 0.08);
       backdrop-filter: blur(10px);
     }
+    .hidden {
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -275,37 +278,38 @@
         </div>
       </div>
     </div>
-    <div class="control">
-      <label for="viseme">Viseme</label>
-      <select id="viseme">
-        <option value="sil">sil (rest)</option>
-        <option value="AA">AA (ah)</option>
-        <option value="EE">EE (ee)</option>
-        <option value="OO">OO (oh)</option>
-        <option value="MM">MM (m/b/p)</option>
-        <option value="FF">FF (f/v)</option>
-        <option value="TH">TH</option>
-        <option value="CH">CH</option>
-        <option value="SS">SS (s/z)</option>
-        <option value="DD">DD (d/t)</option>
-        <option value="kk">kk (k/g)</option>
-        <option value="nn">nn (n)</option>
-        <option value="RR">RR (r)</option>
-        <option value="aa">aa (a)</option>
-        <option value="E">E (eh)</option>
-        <option value="I">I (ih)</option>
-        <option value="O">O (oh)</option>
-        <option value="U">U (oo)</option>
-      </select>
-    </div>
-
-    <div class="control">
-      <label for="ttsInput">Text to Speech (HeadTTS)</label>
-      <textarea id="ttsInput" rows="3">Welcome to a world where stories come alive through the power of voice.</textarea>
-    </div>
-    <div class="control">
-      <button id="speakBtn" type="button">Speak</button>
-      <div class="value" id="ttsStatus">TTS idle</div>
+    <div id="visemeControls">
+      <div class="control">
+        <label for="viseme">Viseme</label>
+        <select id="viseme">
+          <option value="sil">sil (rest)</option>
+          <option value="AA">AA (ah)</option>
+          <option value="EE">EE (ee)</option>
+          <option value="OO">OO (oh)</option>
+          <option value="MM">MM (m/b/p)</option>
+          <option value="FF">FF (f/v)</option>
+          <option value="TH">TH</option>
+          <option value="CH">CH</option>
+          <option value="SS">SS (s/z)</option>
+          <option value="DD">DD (d/t)</option>
+          <option value="kk">kk (k/g)</option>
+          <option value="nn">nn (n)</option>
+          <option value="RR">RR (r)</option>
+          <option value="aa">aa (a)</option>
+          <option value="E">E (eh)</option>
+          <option value="I">I (ih)</option>
+          <option value="O">O (oh)</option>
+          <option value="U">U (oo)</option>
+        </select>
+      </div>
+      <div class="control" id="ttsControls">
+        <label for="ttsInput">Text to Speech (HeadTTS)</label>
+        <textarea id="ttsInput" rows="3">Welcome to a world where stories come alive through the power of voice.</textarea>
+      </div>
+      <div class="control">
+        <button id="speakBtn" type="button">Speak</button>
+        <div class="value" id="ttsStatus">TTS idle</div>
+      </div>
     </div>
     <div id="perfPanel">
       <div class="value" id="perfInitTotal">Init total: —</div>
@@ -332,7 +336,7 @@
   </div>
 
   <script type="module" src="./models/aiden.js"></script>
-  <script type="module" src="./aiden-viewer.js"></script>
+  <script type="module" src="./model-viewer.js"></script>
   <script type="module" src="./tts.js"></script>
 </body>
 </html>

@@ -2,63 +2,115 @@ export const FACE_CAP_REST_STATE = {
   "brows": {
     "browDownLeft": 0,
     "browDownRight": 0,
-    "browInnerUp": 0.12167,
-    "browOuterUpLeft": 0.02322,
-    "browOuterUpRight": 0.02321
+    "browInnerUp": 0,
+    "browOuterUpLeft": 0,
+    "browOuterUpRight": 0
   },
   "mouth": {
-    "cheekPuff": 0.07211,
-    "cheekSquintLeft": 0.06493,
-    "cheekSquintRight": 0.06679,
-    "eyeBlinkLeft": 0.06235,
-    "eyeBlinkRight": 0.0623,
-    "eyeLookDownLeft": 0.32136,
-    "eyeLookDownRight": 0.32038,
+    "cheekPuff": 0,
+    "cheekSquintLeft": 0,
+    "cheekSquintRight": 0,
+    "eyeBlinkLeft": 0,
+    "eyeBlinkRight": 0,
+    "eyeLookDownLeft": 0,
+    "eyeLookDownRight": 0,
     "eyeLookInLeft": 0,
-    "eyeLookInRight": 0.13493,
-    "eyeLookOutLeft": 0.02952,
+    "eyeLookInRight": 0,
+    "eyeLookOutLeft": 0,
     "eyeLookOutRight": 0,
     "eyeLookUpLeft": 0,
     "eyeLookUpRight": 0,
-    "eyeSquintLeft": 0.06009,
-    "eyeSquintRight": 0.06009,
+    "eyeSquintLeft": 0,
+    "eyeSquintRight": 0,
     "eyeWideLeft": 0,
     "eyeWideRight": 0,
-    "jawForward": 0.09864,
-    "jawLeft": 0.04152,
-    "jawOpen": 0.1371,
+    "jawForward": 0,
+    "jawLeft": 0,
+    "jawOpen": 0,
     "jawRight": 0,
-    "mouthClose": 0.15055,
-    "mouthDimpleLeft": 0.11703,
-    "mouthDimpleRight": 0.11252,
-    "mouthFrownLeft": 0.12203,
-    "mouthFrownRight": 0.11968,
-    "mouthFunnel": 0.0726,
-    "mouthLowerDownLeft": 0.09089,
-    "mouthLowerDownRight": 0.09187,
-    "mouthPressLeft": 0.11132,
-    "mouthPressRight": 0.11226,
-    "mouthPucker": 0.15672,
-    "mouthRollLower": 0.35175,
-    "mouthRollUpper": 0.08684,
-    "mouthShrugLower": 0.23266,
-    "mouthShrugUpper": 0.30389,
+    "mouthClose": 0,
+    "mouthDimpleLeft": 0,
+    "mouthDimpleRight": 0,
+    "mouthFrownLeft": 0,
+    "mouthFrownRight": 0,
+    "mouthFunnel": 0,
+    "mouthLowerDownLeft": 0,
+    "mouthLowerDownRight": 0,
+    "mouthPressLeft": 0,
+    "mouthPressRight": 0,
+    "mouthPucker": 0,
+    "mouthRollLower": 0,
+    "mouthRollUpper": 0,
+    "mouthShrugLower": 0,
+    "mouthShrugUpper": 0,
     "mouthSmileLeft": 0,
     "mouthSmileRight": 0,
-    "mouthStretchLeft": 0.18252,
-    "mouthStretchRight": 0.15953,
-    "mouthUpperUpLeft": 0.04365,
-    "mouthUpperUpRight": 0.04553,
-    "noseSneerLeft": 0.09437,
-    "noseSneerRight": 0.08506,
-    "tongueOut": 0.00014
+    "mouthStretchLeft": 0,
+    "mouthStretchRight": 0,
+    "mouthUpperUpLeft": 0,
+    "mouthUpperUpRight": 0,
+    "noseSneerLeft": 0,
+    "noseSneerRight": 0,
+    "tongueOut": 0
   }
 };
 
 const faceCapVisemeMapping = {
   "sil": {
-    "mouth": {},
-    "brows": {}
+    "mouth": {
+      "cheekPuff": 0,
+      "cheekSquintLeft": 0,
+      "cheekSquintRight": 0,
+      "eyeBlinkLeft": 0,
+      "eyeBlinkRight": 0,
+      "eyeLookDownLeft": 0,
+      "eyeLookDownRight": 0,
+      "eyeLookInLeft": 0,
+      "eyeLookInRight": 0,
+      "eyeLookOutLeft": 0,
+      "eyeLookOutRight": 0,
+      "eyeLookUpLeft": 0,
+      "eyeLookUpRight": 0,
+      "eyeSquintLeft": 0,
+      "eyeSquintRight": 0,
+      "eyeWideLeft": 0,
+      "eyeWideRight": 0,
+      "jawForward": 0,
+      "jawLeft": 0,
+      "jawOpen": 0,
+      "jawRight": 0,
+      "mouthClose": 0,
+      "mouthDimpleLeft": 0,
+      "mouthDimpleRight": 0,
+      "mouthFrownLeft": 0,
+      "mouthFrownRight": 0,
+      "mouthFunnel": 0,
+      "mouthLowerDownLeft": 0,
+      "mouthLowerDownRight": 0,
+      "mouthPressLeft": 0,
+      "mouthPressRight": 0,
+      "mouthPucker": 0,
+      "mouthRollLower": 0,
+      "mouthRollUpper": 0,
+      "mouthShrugLower": 0,
+      "mouthShrugUpper": 0,
+      "mouthSmileLeft": 0,
+      "mouthSmileRight": 0,
+      "mouthStretchLeft": 0,
+      "mouthStretchRight": 0,
+      "mouthUpperUpLeft": 0,
+      "mouthUpperUpRight": 0,
+      "noseSneerLeft": 0,
+      "noseSneerRight": 0,
+      "tongueOut": 0.00014
+    },
+    "brows": {
+      "browDownLeft": 0,
+      "browDownRight": 0,
+      "browInnerUp": 0,
+      "browOuterUpLeft": 0,
+      "browOuterUpRight": 0
+    }
   },
   "AA": {
     "mouth": {
@@ -107,10 +159,16 @@ const faceCapVisemeMapping = {
   },
   "FF": {
     "mouth": {
-      "mouthClose": 0.5,
-      "mouthPucker": 0.35,
-      "mouthPressLeft": 0.45,
-      "mouthPressRight": 0.45
+      "mouthClose": 0.15,
+      "mouthPucker": 0.27,
+      "mouthPressLeft": 0.43,
+      "mouthPressRight": 0.45,
+      "jawForward": 0,
+      "mouthDimpleRight": 0,
+      "mouthFrownLeft": 0,
+      "mouthRollUpper": 0.32,
+      "mouthShrugLower": 0,
+      "mouthShrugUpper": 0.46
     },
     "brows": {
       "eyebrowRaise": 0.05
@@ -118,7 +176,7 @@ const faceCapVisemeMapping = {
   },
   "TH": {
     "mouth": {
-      "jawOpen": 1,
+      "jawOpen": 0.35,
       "mouthPucker": 0.1,
       "mouthFunnel": 0,
       "cheekPuff": 0.27,
@@ -130,7 +188,7 @@ const faceCapVisemeMapping = {
       "tongueOut": 0,
       "jawRight": 0,
       "mouthDimpleRight": 0,
-      "mouthClose": 0.9,
+      "mouthClose": 0.45,
       "mouthSmileLeft": 0.3,
       "mouthSmileRight": 0.3,
       "mouthStretchLeft": 0.41,
@@ -150,7 +208,12 @@ const faceCapVisemeMapping = {
   "DD": {
     "mouth": {
       "jawOpen": 0,
-      "mouthClose": 0.83
+      "mouthClose": 0.04,
+      "mouthPucker": 0.28,
+      "mouthSmileLeft": 0.28,
+      "mouthSmileRight": 0.28,
+      "mouthStretchLeft": 0.38,
+      "mouthStretchRight": 0.36
     },
     "brows": {
       "eyebrowRaise": 0.06
@@ -159,7 +222,7 @@ const faceCapVisemeMapping = {
   "kk": {
     "mouth": {
       "jawOpen": 0.35,
-      "mouthClose": 0.54
+      "mouthClose": 0.25
     },
     "brows": {}
   },
@@ -169,7 +232,7 @@ const faceCapVisemeMapping = {
       "mouthFunnel": 0,
       "mouthPucker": 0,
       "jawForward": 0.65,
-      "mouthClose": 0.69
+      "mouthClose": 0.28
     },
     "brows": {
       "eyebrowRaise": 0.08
@@ -177,10 +240,10 @@ const faceCapVisemeMapping = {
   },
   "SS": {
     "mouth": {
-      "jawOpen": 0.18,
+      "jawOpen": 0.43,
       "mouthStretchLeft": 0.34,
       "mouthStretchRight": 0.34,
-      "mouthClose": 0.71,
+      "mouthClose": 0.28,
       "mouthPucker": 0,
       "mouthSmileLeft": 0.99,
       "mouthSmileRight": 1
@@ -192,7 +255,7 @@ const faceCapVisemeMapping = {
   "nn": {
     "mouth": {
       "jawOpen": 0.2,
-      "mouthClose": 0.74
+      "mouthClose": 0.35
     },
     "brows": {}
   },
@@ -200,7 +263,7 @@ const faceCapVisemeMapping = {
     "mouth": {
       "jawOpen": 0.35,
       "mouthPucker": 0.2,
-      "mouthClose": 0.46
+      "mouthClose": 0.25
     },
     "brows": {}
   },
@@ -236,13 +299,17 @@ const faceCapVisemeMapping = {
       "jawOpen": 0.54,
       "mouthPucker": 0,
       "mouthFunnel": 1,
-      "mouthRollLower": 0.65,
+      "mouthRollLower": 0.67,
       "mouthRollUpper": 0.66,
       "mouthClose": 0,
       "mouthStretchLeft": 0.96,
       "mouthStretchRight": 1,
       "mouthSmileRight": 0,
-      "mouthFrownLeft": 0
+      "mouthFrownLeft": 0,
+      "mouthDimpleLeft": 0,
+      "mouthShrugLower": 0,
+      "mouthShrugUpper": 0,
+      "mouthSmileLeft": 0
     },
     "brows": {
       "eyebrowRaise": 0.05,
@@ -261,7 +328,7 @@ const faceCapVisemeMapping = {
   },
   "aa": {
     "mouth": {
-      "jawOpen": 0.49,
+      "jawOpen": 0.68,
       "mouthFunnel": 0,
       "mouthPucker": 0,
       "Sad": 0,
@@ -270,7 +337,7 @@ const faceCapVisemeMapping = {
       "mouthPressLeft": 0,
       "mouthPressRight": 0,
       "jawRight": 0,
-      "mouthClose": 0.45,
+      "mouthClose": 0,
       "mouthSmileLeft": 0.29,
       "mouthSmileRight": 0.29,
       "mouthStretchRight": 0,
@@ -285,8 +352,8 @@ const faceCapVisemeMapping = {
   },
   "PP": {
     "mouth": {
-      "mouthClose": 0.4,
-      "mouthPressLeft": 0.41,
+      "mouthClose": 0.19,
+      "mouthPressLeft": 0.4,
       "mouthPressRight": 0.4,
       "mouthPucker": 0,
       "mouthSmileRight": 0.42,

@@ -129,7 +129,6 @@ const saveVisemeFileBtn = document.getElementById("saveVisemeToFile");
 const visemeFileStatus = document.getElementById("visemeFileStatus");
 const VISME_MAPPING_SERVER_URL = "http://localhost:3001/viseme-mapping";
 const visemePanelTitle = document.getElementById("visemePanelTitle");
-const visemeControls = document.getElementById("visemeControls");
 const visemePanel = document.getElementById("visemePanel");
 const MODEL_INFO = {
   aiden: { displayName: "Aiden (cartoon)" },
@@ -619,13 +618,6 @@ function setVisemePanelVisibility(visible) {
   visemePanel.classList.toggle("visible", visible);
 }
 
-function updateVisemeUI(hasMorphTargets) {
-  if (visemeControls) {
-    visemeControls.classList.toggle("hidden", !hasMorphTargets);
-  }
-  setVisemePanelVisibility(hasMorphTargets);
-}
-
 function logBlendshapeCoverage(mesh, canonicalList, modelKey) {
   if (!mesh?.morphTargetDictionary) {
     console.info(`${getModelDisplayName(modelKey)} has no morph targets.`);
@@ -741,7 +733,7 @@ function renderVisemeTuner(viseme) {
 }
 
 renderVisemeTuner(currentTunerViseme);
-updateVisemeUI(true);
+setVisemePanelVisibility(true);
 applyVisemePose(currentTunerViseme, externalIntensity);
 
 function getVisemeEntry(viseme) {
@@ -810,7 +802,6 @@ function loadAppleModel() {
       scene.add(appleObject);
       showMorphTargetsList([], `${getModelDisplayName("apple")} has no morph targets.`, "apple");
       focusOnBoundingBox(new THREE.Box3().setFromObject(appleObject));
-      updateVisemeUI(false);
     },
     undefined,
     (error) => {
@@ -911,7 +902,7 @@ const loadFaceModel = async (idx = 0) => {
           logBlendshapeCoverage(firstBlendMesh, ARKIT_BLENDSHAPES, "facecap");
         }
       focusOnBoundingBox(new THREE.Box3().setFromObject(face));
-      updateVisemeUI(true);
+      setVisemePanelVisibility(true);
       renderVisemeTuner(visemeSelect?.value || "sil");
       applyVisemePose(visemeSelect?.value || "sil", externalIntensity);
     },

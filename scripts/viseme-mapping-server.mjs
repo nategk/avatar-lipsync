@@ -37,6 +37,21 @@ async function readBody(req) {
   return Buffer.concat(chunks).toString("utf8");
 }
 
+function stripZeroValues(mapping) {
+  const prune = (group = {}) =>
+    Object.fromEntries(
+      Object.entries(group).filter(([, value]) => value !== 0)
+    );
+
+  const result = {};
+  Object.entries(mapping).forEach(([viseme, definition]) => {
+    const mouth = prune(definition.mouth);
+    const brows = prune(definition.brows);
+    result[viseme] = { mouth, brows };
+  });
+  return result;
+}
+
 const server = http.createServer(async (req, res) => {
   if (req.method === "OPTIONS") {
     res.writeHead(204, corsHeaders);
@@ -55,7 +70,8 @@ const server = http.createServer(async (req, res) => {
     const mapping = JSON.parse(body);
 
     const restState = await loadRestState();
-    const fileContents = buildFilePayload(restState, mapping);
+    const cleanedMapping = stripZeroValues(mapping);
+    const fileContents = buildFilePayload(restState, cleanedMapping);
     await fs.writeFile(DATA_FILE, fileContents, "utf8");
 
     res.writeHead(200, { ...corsHeaders, "Content-Type": "application/json" });
