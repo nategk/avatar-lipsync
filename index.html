@@ -41,6 +41,52 @@
       overflow-y: auto;
     }
 
+    .panel {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      bottom: 16px;
+      width: 260px;
+      display: none;
+      flex-direction: column;
+      gap: 12px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: rgba(12, 14, 18, 0.72);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(12px);
+      overflow: hidden;
+    }
+
+    .panel.visible .target-list {
+      flex: 1;
+      min-height: 0;
+      max-height: calc(100vh - 240px);
+    }
+
+    .panel h2 {
+      font-size: 18px;
+      margin-top: 0;
+    }
+
+    .panel.visible {
+      display: flex;
+    }
+
+    .panel .row {
+      gap: 4px;
+      align-items: center;
+    }
+
+    .panel .row label {
+      font-size: 11px;
+      margin-bottom: 4px;
+    }
+
+    .panel .row input[type="range"] {
+      height: 24px;
+    }
+
     #toolbar h1 {
       font-size: 16px;
       font-weight: 600;
@@ -123,9 +169,55 @@
       border: 1px solid rgba(255, 255, 255, 0.08);
       border-radius: 8px;
       padding: 8px;
-      max-height: 140px;
       overflow: auto;
       background: rgba(12, 14, 18, 0.5);
+    }
+
+    .target-window {
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      overflow: hidden;
+      background: rgba(15, 17, 22, 0.9);
+    }
+
+    .target-window__header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      padding: 6px 10px;
+      border: none;
+      background: transparent;
+      color: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .target-window__body {
+      max-height: 0;
+      transition: max-height 0.25s ease;
+      overflow: hidden;
+    }
+
+    .target-window__icon {
+      font-size: 12px;
+      transition: transform 0.25s ease;
+    }
+
+    .target-window:not(.collapsed) .target-window__body {
+      max-height: 180px;
+    }
+
+    .target-window:not(.collapsed) .target-window__icon {
+      transform: rotate(90deg);
+    }
+
+    #visemePanel .target-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding-bottom: 12px;
     }
 
 
@@ -162,11 +254,21 @@
       <select id="modelSelect">
         <option value="aiden">Aiden (cartoon)</option>
         <option value="facecap">FaceCap (morph targets)</option>
+        <option value="apple">Apple ARKit example</option>
       </select>
     </div>
     <div class="control">
-      <label>FaceCap morph targets</label>
-      <div id="morphTargetsList" class="target-list">Load FaceCap to view targets.</div>
+      <div class="target-window collapsed" aria-expanded="false">
+        <button type="button" class="target-window__header">
+          <span>Active model morph targets</span>
+          <span class="target-window__icon">▶</span>
+        </button>
+        <div class="target-window__body">
+          <div id="morphTargetsList" class="target-list">
+            Select a morph-target model to view its blendshapes.
+          </div>
+        </div>
+      </div>
     </div>
     <div class="control">
       <label for="viseme">Viseme</label>
@@ -193,12 +295,6 @@
     </div>
 
     <div class="control">
-      <label for="intensity">Intensity</label>
-      <input id="intensity" type="range" min="0" max="1" step="0.01" value="1" />
-      <div class="value" id="intensityValue">1.00</div>
-    </div>
-
-    <div class="control">
       <label for="ttsInput">Text to Speech (HeadTTS)</label>
       <textarea id="ttsInput" rows="3">Welcome to a world where stories come alive through the power of voice.</textarea>
     </div>
@@ -216,6 +312,19 @@
       <div class="value" id="perfVisemeStart">First viseme: —</div>
       <div class="value" id="perfPlayback">Playback duration: —</div>
     </div>
+  </div>
+
+  <div id="visemePanel" class="panel">
+    <h2>Per-viseme tuning</h2>
+    <div class="note">
+      Adjust every available blendshape weight for the selected viseme and save the settings so the rig matches your reference.
+    </div>
+    <div id="visemeTunerList" class="target-list">Select a viseme to load its morph targets.</div>
+    <div class="row" style="gap: 8px; margin-top: 8px;">
+      <button id="saveVisemeTuning" type="button">Save viseme tuning</button>
+      <button id="resetVisemeTuning" type="button" style="background: #555;">Reset to defaults</button>
+    </div>
+    <div class="value" id="visemeTunerStatus">Not saved</div>
   </div>
 
   <script type="module" src="./models/aiden.js"></script>

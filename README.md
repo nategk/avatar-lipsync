@@ -21,15 +21,16 @@ Open:
 ## Architecture (High Level)
 - Browser renders the Aiden 3D model and applies viseme-driven morph targets.
 - HeadTTS runs in the browser (WebGPU/WASM) to generate audio + viseme timings.
+-- Note: this is slow/low latency, and would be much improved using a web service like ElevenLabs. Suggest we try that direction as we iterate latency improvements.
 - Audio plays in the browser while visemes drive mouth/eyebrow animation.
-- A local static server hosts all assets (models, wasm, JS bundles).
+- A local static Node server hosts all assets (models, wasm, JS bundles).
 
 ## Core Technologies
 - Three.js for 3D rendering
 - HeadTTS for TTS + viseme data
 - Web Audio API for playback timing
 - WebGPU/WASM via onnxruntime-web + transformers.js
-- http-server for local static hosting
+- Node http-server for local static hosting
 - TalkingHead is not a dependency, but its ARKit + OVR viseme specs inform our mapping approach. [TalkingHead](https://github.com/met4citizen/TalkingHead)
 
 ## Server vs Client Responsibilities

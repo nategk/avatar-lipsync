@@ -2,6 +2,14 @@ import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { KTX2Loader } from "three/addons/loaders/KTX2Loader.js";
 import { MeshoptDecoder } from "./vendor/meshopt_decoder.module.js";
+import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
+import faceCapVisemeMapping, {
+  ARKIT_BLENDSHAPES,
+  FACE_CAP_REST_STATE,
+} from "./data/facecap-viseme-mapping.js";
+
+const defaultFaceCapVisemeMapping = JSON.parse(JSON.stringify(faceCapVisemeMapping));
+const VISME_TUNING_KEY = "facecapVisemeTuning";
 
 const viewport = document.getElementById("viewport");
 const scene = new THREE.Scene();
@@ -28,6 +36,8 @@ const orbitTarget = new THREE.Vector3(-0.6, 1.25, 0);
 const spherical = new THREE.Spherical();
 const minRadius = 2.2;
 const maxRadius = 10;
+const focusBoxCenter = new THREE.Vector3();
+const focusBoxSize = new THREE.Vector3();
 
 renderer.domElement.style.touchAction = "none";
 updateSphericalFromCamera();
@@ -88,6 +98,7 @@ const clearFaceModel = () => {
     faceObject = null;
   }
   morphTargetMeshes = [];
+  showMorphTargetsList([], "FaceCap morph targets will populate after loading.", "facecap");
 };
 
 const currentExpressions = {
@@ -103,13 +114,19 @@ let pendingMouthPose = null;
 let pendingBlendshapePose = null;
 
 const visemeSelect = document.getElementById("viseme");
-const intensitySlider = document.getElementById("intensity");
-const intensityValue = document.getElementById("intensityValue");
 const modelSelect = document.getElementById("modelSelect");
 const morphTargetsList = document.getElementById("morphTargetsList");
+const morphTargetsWindow = document.querySelector(".target-window");
+const morphTargetsHeader = document.querySelector(".target-window__header");
+const visemeTunerList = document.getElementById("visemeTunerList");
+const visemeSaveTuningBtn = document.getElementById("saveVisemeTuning");
+const visemeResetTuningBtn = document.getElementById("resetVisemeTuning");
+const visemeTunerStatus = document.getElementById("visemeTunerStatus");
+const visemePanel = document.getElementById("visemePanel");
 const MODEL_INFO = {
   aiden: { displayName: "Aiden (cartoon)" },
   facecap: { displayName: "FaceCap (morph targets)" },
+  apple: { displayName: "Apple ARKit rig" },
 };
 const FACE_CAP_TARGET_NAMES = [
   "browInnerUp",
@@ -187,7 +204,29 @@ const FACE_CAP_CANONICAL = {
   mouthDimple_R: "mouthDimpleRight",
   mouthLeft: "mouthPucker",
   mouthRight: "mouthPucker",
+  browDown_L: "browDownLeft",
+  browDown_R: "browDownRight",
+  browInnerUp: "browInnerUp",
+  browOuterUp_L: "browOuterUpLeft",
+  browOuterUp_R: "browOuterUpRight",
 };
+
+function normalizeBlendshapeName(name) {
+  if (!name) return name;
+  const direct = FACE_CAP_CANONICAL[name] || FACE_CAP_CANONICAL[name.toLowerCase()];
+  if (direct) return direct;
+  let normalized = String(name).trim();
+  const suffixMatch = normalized.match(/_(l|r)$/i);
+  let suffix = "";
+  if (suffixMatch) {
+    normalized = normalized.slice(0, -2);
+    suffix = suffixMatch[1].toLowerCase() === "l" ? "Left" : "Right";
+  }
+  normalized = normalized.replace(/[_\s-]+/g, "");
+  normalized = normalized.replace(/([a-z])([A-Z])/g, "$1$2");
+  normalized = normalized.replace(/^\d+/, "");
+  return normalized + suffix;
+}
 
 const OVR_VISEMES = new Set([
   "sil",
@@ -320,129 +359,72 @@ function normalizeViseme(viseme) {
   return "sil";
 }
 
-const visemePoseMap = {
-  AA: {
-    mouth: { jawOpen: 0.98, mouthFunnel: 0.1, mouthPucker: 0.05 },
-    brows: { eyebrowRaise: 0.08, eyebrowTilt: 0.02 },
-  },
-  EE: {
-    mouth: {
-      jawOpen: 0.25,
-      mouthClose: 0.15,
-      mouthStretchLeft: 0.6,
-      mouthStretchRight: 0.6,
-      mouthSmileLeft: 0.25,
-      mouthSmileRight: 0.25,
-    },
-    brows: { eyebrowRaise: 0.1, eyebrowTilt: 0.02 },
-  },
-  OO: {
-    mouth: { jawOpen: 0.6, mouthPucker: 0.9, mouthFunnel: 0.75 },
-    brows: { eyebrowRaise: 0.05, eyebrowTilt: -0.02 },
-  },
-  MM: {
-    mouth: { jawOpen: 0, mouthClose: 1, mouthPressLeft: 0.4, mouthPressRight: 0.4 },
-    brows: { eyebrowRaise: 0.04, eyebrowTilt: 0 },
-  },
-  FF: {
-    mouth: {
-      jawOpen: 0.05,
-      mouthClose: 0.88,
-      mouthPucker: 0.35,
-      mouthPressLeft: 0.45,
-      mouthPressRight: 0.45,
-    },
-    brows: { eyebrowRaise: 0.05, eyebrowTilt: 0.02 },
-  },
-  TH: {
-    mouth: { jawOpen: 0.3, mouthPucker: 0.1, mouthFunnel: 0.1 },
-    brows: { eyebrowRaise: 0.1, eyebrowTilt: 0.05 },
-  },
-  DD: {
-    mouth: { jawOpen: 0.4, mouthClose: 0.15 },
-    brows: { eyebrowRaise: 0.06, eyebrowTilt: 0 },
-  },
-  kk: {
-    mouth: { jawOpen: 0.35, mouthClose: 0.15 },
-    brows: { eyebrowRaise: 0.05, eyebrowTilt: 0.01 },
-  },
-  CH: {
-    mouth: { jawOpen: 0.45, mouthFunnel: 0.25, mouthPucker: 0.15 },
-    brows: { eyebrowRaise: 0.08, eyebrowTilt: 0.01 },
-  },
-  SS: {
-    mouth: { jawOpen: 0.18, mouthStretchLeft: 0.34, mouthStretchRight: 0.34 },
-    brows: { eyebrowRaise: 0.06, eyebrowTilt: 0.01 },
-  },
-  nn: {
-    mouth: { jawOpen: 0.2, mouthClose: 0.1 },
-    brows: { eyebrowRaise: 0.05, eyebrowTilt: 0 },
-  },
-  RR: {
-    mouth: { jawOpen: 0.35, mouthPucker: 0.2 },
-    brows: { eyebrowRaise: 0.06, eyebrowTilt: 0.01 },
-  },
-  aa: {
-    mouth: { jawOpen: 0.95, mouthFunnel: 0.1 },
-    brows: { eyebrowRaise: 0.08, eyebrowTilt: 0.02 },
-  },
-  E: {
-    mouth: {
-      jawOpen: 0.2,
-      mouthClose: 0.25,
-      mouthSmileLeft: 0.2,
-      mouthSmileRight: 0.2,
-      mouthStretchLeft: 0.5,
-      mouthStretchRight: 0.5,
-    },
-    brows: { eyebrowRaise: 0.07, eyebrowTilt: 0.05 },
-  },
-  I: {
-    mouth: {
-      jawOpen: 0.18,
-      mouthSmileLeft: 0.28,
-      mouthSmileRight: 0.28,
-    },
-    brows: { eyebrowRaise: 0.1, eyebrowTilt: 0.02 },
-  },
-  O: {
-    mouth: { jawOpen: 0.5, mouthPucker: 0.85, mouthFunnel: 0.7 },
-    brows: { eyebrowRaise: 0.05, eyebrowTilt: -0.01 },
-  },
-  U: {
-    mouth: { jawOpen: 0.3, mouthPucker: 0.6, mouthFunnel: 0.3 },
-    brows: { eyebrowRaise: 0.04, eyebrowTilt: -0.01 },
-  },
-  sil: {
-    mouth: { jawOpen: 0, mouthClose: 0.2 },
-    brows: { eyebrowRaise: 0.02, eyebrowTilt: 0 },
-  },
-};
+const visemePoseMap = faceCapVisemeMapping;
+const customVisemeOverrides = {};
+
+function normalizeVisemeKey(viseme) {
+  return normalizeViseme(viseme);
+}
+
+function getVisemeOverrides(viseme) {
+  const key = normalizeVisemeKey(viseme);
+  if (!customVisemeOverrides[key]) {
+    customVisemeOverrides[key] = { mouth: {}, brows: {} };
+  }
+  return customVisemeOverrides[key];
+}
+
+function setVisemeOverride(viseme, group, key, value) {
+  const overrides = getVisemeOverrides(viseme);
+  overrides[group] = overrides[group] || {};
+  overrides[group][key] = value;
+}
+
+function applyStoredVisemeOverrides(viseme, definition) {
+  if (definition.mouth) {
+    Object.entries(definition.mouth).forEach(([key, value]) => {
+      setVisemeOverride(viseme, "mouth", key, value);
+    });
+  }
+  if (definition.brows) {
+    Object.entries(definition.brows).forEach(([key, value]) => {
+      setVisemeOverride(viseme, "brows", key, value);
+    });
+  }
+}
+
+function getVisemeOverride(viseme, group, key) {
+  const overrides = customVisemeOverrides[normalizeVisemeKey(viseme)];
+  if (!overrides || !overrides[group]) return undefined;
+  return overrides[group][key];
+}
 
 function applyVisemePose(viseme, intensity) {
   const normalized = normalizeViseme(viseme);
   const pose = visemePoseMap[normalized] || visemePoseMap.sil;
-  const mouth = pose.mouth || visemePoseMap.sil.mouth;
-  const brows = pose.brows || visemePoseMap.sil.brows;
+  const isRest = normalized === "sil";
+  const baseMouth = isRest
+    ? {}
+    : { ...FACE_CAP_REST_STATE.mouth, ...(pose.mouth || {}) };
+  const baseBrows = isRest
+    ? {}
+    : { ...FACE_CAP_REST_STATE.brows, ...(pose.brows || {}) };
+  const overrides = getVisemeOverrides(normalized);
+  const finalMouth = { ...baseMouth, ...overrides.mouth };
+  const finalBrows = { ...baseBrows, ...overrides.brows };
   const amt = Math.max(0, Math.min(1, intensity));
 
-  pendingMouthPose = {
-    jawOpen: (mouth.jawOpen || 0) * amt,
-    mouthClose: (mouth.mouthClose || 0) * amt,
-    mouthFunnel: (mouth.mouthFunnel || 0) * amt,
-    mouthPucker: (mouth.mouthPucker || 0) * amt,
-    mouthSmileLeft: (mouth.mouthSmileLeft || 0) * amt,
-    mouthSmileRight: (mouth.mouthSmileRight || 0) * amt,
-    mouthFrownLeft: (mouth.mouthFrownLeft || 0) * amt,
-    mouthFrownRight: (mouth.mouthFrownRight || 0) * amt,
-    mouthPressLeft: (mouth.mouthPressLeft || 0) * amt,
-    mouthPressRight: (mouth.mouthPressRight || 0) * amt,
-    mouthStretchLeft: (mouth.mouthStretchLeft || 0) * amt,
-    mouthStretchRight: (mouth.mouthStretchRight || 0) * amt,
-  };
+  const nextPose = {};
+  Object.entries(finalMouth).forEach(([key, value]) => {
+    nextPose[key] = (value || 0) * amt;
+  });
+  Object.entries(finalBrows).forEach(([key, value]) => {
+    nextPose[key] = (value || 0) * amt;
+  });
 
-  currentExpressions.eyebrowRaise = brows.eyebrowRaise * amt;
-  currentExpressions.eyebrowTilt = brows.eyebrowTilt * amt;
+  pendingMouthPose = nextPose;
+  currentExpressions.eyebrowRaise = (finalBrows.eyebrowRaise || 0) * amt;
+  currentExpressions.eyebrowTilt = (finalBrows.eyebrowTilt || 0) * amt;
 
   // TODO: Hook pendingMouthPose into the next mouth rig implementation.
 }
@@ -514,7 +496,7 @@ function applyMouthConstraints(targets) {
 }
 
 function resolveMorphTargetValue(name, targets) {
-  const canonical = FACE_CAP_CANONICAL[name] || FACE_CAP_CANONICAL[name.toLowerCase()] || name;
+  const canonical = normalizeBlendshapeName(name);
   name = canonical;
   if (name in targets) return targets[name] || 0;
   const lower = name.toLowerCase();
@@ -523,6 +505,9 @@ function resolveMorphTargetValue(name, targets) {
   if (lower.includes("mouthclose")) return targets.mouthClose || 0;
   if (lower.includes("funnel")) return targets.mouthFunnel || 0;
   if (lower.includes("pucker") || lower.includes("kiss")) return targets.mouthPucker || 0;
+  if (lower.includes("browdown")) return targets.browDownLeft || targets.browDownRight || 0;
+  if (lower.includes("browinnerup")) return targets.browInnerUp || 0;
+  if (lower.includes("browouterup")) return (targets.browOuterUpLeft || targets.browOuterUpRight || 0);
   if (lower.includes("smile")) {
     const side = lower.includes("l") ? "left" : lower.includes("r") ? "right" : null;
     if (side === "left") return targets.mouthSmileLeft || 0;
@@ -605,6 +590,9 @@ const faceUrls = [
   "https://cdn.jsdelivr.net/gh/mrdoob/three.js@r160/examples/models/gltf/facecap.glb",
   "https://threejs.org/examples/models/gltf/facecap.glb",
 ];
+const appleModelPath = "./models/apple-reference/ARFaceGeometry.obj";
+const appleLoader = new OBJLoader();
+let appleObject = null;
 
 const setMorphListText = (text) => {
   if (morphTargetsList) morphTargetsList.textContent = text;
@@ -625,6 +613,231 @@ function showMorphTargetsList(names, fallback, modelKey = currentModelMode) {
     fallback || `No morph targets available for ${modelName}.`;
 }
 
+function setMorphTargetsWindow(expanded) {
+  if (!morphTargetsWindow) return;
+  morphTargetsWindow.classList.toggle("collapsed", !expanded);
+  morphTargetsWindow.setAttribute("aria-expanded", expanded ? "true" : "false");
+}
+
+function setVisemePanelVisibility(visible) {
+  if (!visemePanel) return;
+  visemePanel.classList.toggle("visible", visible);
+}
+
+function logBlendshapeCoverage(mesh, canonicalList, modelKey) {
+  if (!mesh?.morphTargetDictionary) {
+    console.info(`${getModelDisplayName(modelKey)} has no morph targets.`);
+    return;
+  }
+  const keys = Object.keys(mesh.morphTargetDictionary);
+  const missing = canonicalList.filter((name) => !keys.includes(name));
+  if (missing.length) {
+    console.debug(
+      `${getModelDisplayName(modelKey)} missing ${missing.length} canonical blendshapes:`,
+      missing
+    );
+  } else {
+    console.debug(`${getModelDisplayName(modelKey)} covers all ${canonicalList.length} canonical blendshapes.`);
+  }
+}
+
+let currentTunerViseme = visemeSelect?.value || "sil";
+let visemeTunerDirty = false;
+
+function markVisemeTunerDirty() {
+  visemeTunerDirty = true;
+  if (visemeTunerStatus) {
+    visemeTunerStatus.textContent = "Unsaved changes";
+  }
+}
+
+function getAvailableMorphTargets() {
+  const names = new Set();
+  morphTargetMeshes.forEach((mesh) => {
+    if (mesh?.morphTargetDictionary) {
+      Object.keys(mesh.morphTargetDictionary).forEach((name) => names.add(name));
+    }
+  });
+  return Array.from(names).sort();
+}
+
+function categorizeBlendshape(name) {
+  const canonical = normalizeBlendshapeName(name);
+  const lower = canonical.toLowerCase();
+  return lower.includes("brow") ? "brows" : "mouth";
+}
+
+function renderVisemeTuner(viseme) {
+  const normalizedViseme = normalizeViseme(viseme);
+  const isRestViseme = normalizedViseme === "sil";
+  currentTunerViseme = normalizedViseme;
+  if (!visemeTunerList) return;
+  visemeTunerList.innerHTML = "";
+  let hasRows = false;
+  const entry = getVisemeEntry(viseme);
+  const availableMorphs = getAvailableMorphTargets();
+  if (!availableMorphs.length) {
+    visemeTunerList.textContent = "No morph targets loaded yet.";
+    return;
+  }
+  const header = document.createElement("div");
+  header.textContent = "Available morph targets";
+  header.style.fontSize = "12px";
+  header.style.opacity = "0.65";
+  visemeTunerList.appendChild(header);
+  availableMorphs.forEach((morphName) => {
+    const canonical = normalizeBlendshapeName(morphName);
+    const group = categorizeBlendshape(canonical);
+    const row = document.createElement("div");
+    row.className = "row";
+    const labelText = document.createElement("label");
+    labelText.textContent = morphName;
+    labelText.style.flex = "1";
+    const slider = document.createElement("input");
+    slider.type = "range";
+    slider.min = "0";
+    slider.max = "1";
+    slider.step = "0.01";
+    const restValue = isRestViseme
+      ? 0
+      : (group === "brows"
+          ? FACE_CAP_REST_STATE.brows[canonical]
+          : FACE_CAP_REST_STATE.mouth[canonical]) ?? 0;
+    const overrideValue = getVisemeOverride(normalizedViseme, group, canonical);
+    const value = entry[group]?.[canonical] ?? overrideValue ?? restValue;
+    slider.value = String(value);
+    slider.dataset.group = group;
+    slider.dataset.canonical = canonical;
+    slider.dataset.name = morphName;
+    slider.style.flex = "2";
+    const valueLabel = document.createElement("div");
+    valueLabel.className = "value";
+    valueLabel.textContent = slider.value;
+    slider.addEventListener("input", (event) => {
+      const next = Number(event.target.value);
+      const groupName = event.target.dataset.group;
+      const blendKey = event.target.dataset.canonical;
+      if (!entry[groupName]) {
+        entry[groupName] = {};
+      }
+      entry[groupName][blendKey] = next;
+      setVisemeOverride(currentTunerViseme, groupName, blendKey, next);
+      valueLabel.textContent = next.toFixed(2);
+      markVisemeTunerDirty();
+      applyVisemePose(currentTunerViseme, externalIntensity);
+    });
+    row.appendChild(labelText);
+    row.appendChild(slider);
+    row.appendChild(valueLabel);
+    visemeTunerList.appendChild(row);
+    hasRows = true;
+  });
+  if (!hasRows) {
+    visemeTunerList.textContent = "No blendshapes defined for this viseme yet.";
+  }
+}
+
+loadVisemeTuning();
+renderVisemeTuner(currentTunerViseme);
+setVisemePanelVisibility(false);
+applyVisemePose(currentTunerViseme, externalIntensity);
+
+function getVisemeEntry(viseme) {
+  const normalized = normalizeViseme(viseme);
+  if (!faceCapVisemeMapping[normalized]) {
+    faceCapVisemeMapping[normalized] = { mouth: {}, brows: {} };
+  }
+  return faceCapVisemeMapping[normalized];
+}
+
+function resetVisemeTuning() {
+  Object.keys(faceCapVisemeMapping).forEach((viseme) => {
+    const definition = defaultFaceCapVisemeMapping[viseme];
+    if (!definition) return;
+    faceCapVisemeMapping[viseme].mouth = { ...definition.mouth };
+    faceCapVisemeMapping[viseme].brows = { ...definition.brows };
+  });
+  Object.keys(customVisemeOverrides).forEach((key) => {
+    delete customVisemeOverrides[key];
+  });
+  if (window.localStorage) {
+    window.localStorage.removeItem(VISME_TUNING_KEY);
+  }
+  visemeTunerDirty = false;
+  if (visemeTunerStatus) {
+    visemeTunerStatus.textContent = "Reset to defaults";
+  }
+  renderVisemeTuner(currentTunerViseme);
+}
+
+function saveVisemeTuning() {
+  if (!window.localStorage) return;
+  const payload = {};
+  Object.entries(faceCapVisemeMapping).forEach(([viseme, definition]) => {
+    payload[viseme] = {
+      mouth: { ...definition.mouth },
+      brows: { ...definition.brows },
+    };
+  });
+  window.localStorage.setItem(VISME_TUNING_KEY, JSON.stringify(payload));
+  visemeTunerDirty = false;
+  if (visemeTunerStatus) {
+    visemeTunerStatus.textContent = "Saved";
+  }
+}
+
+function loadVisemeTuning() {
+  if (!window.localStorage) return;
+  const stored = window.localStorage.getItem(VISME_TUNING_KEY);
+  if (!stored) return;
+  try {
+    const overrides = JSON.parse(stored);
+    Object.entries(overrides).forEach(([viseme, definition]) => {
+      const entry = getVisemeEntry(viseme);
+        if (definition.mouth) {
+          entry.mouth = { ...entry.mouth, ...definition.mouth };
+        }
+        if (definition.brows) {
+          entry.brows = { ...entry.brows, ...definition.brows };
+        }
+        applyStoredVisemeOverrides(viseme, definition);
+    });
+  } catch (error) {
+    console.warn("Failed to parse viseme tuning overrides", error);
+  }
+}
+
+function loadAppleModel() {
+  showMorphTargetsList([], `Loading ${getModelDisplayName("apple")}...`, "apple");
+  appleLoader.load(
+    appleModelPath,
+    (obj) => {
+      appleObject = obj;
+      appleObject.scale.setScalar(0.02);
+      appleObject.traverse((child) => {
+        if (child.isMesh) {
+          child.material = new THREE.MeshNormalMaterial();
+        }
+      });
+      appleObject.position.copy(orbitTarget);
+      scene.add(appleObject);
+      showMorphTargetsList([], `${getModelDisplayName("apple")} has no morph targets.`, "apple");
+    },
+    undefined,
+    (error) => {
+      console.error("Failed to load Apple model:", error);
+      setMorphListText("Failed to load Apple reference model.");
+    }
+  );
+}
+
+function removeAppleModel() {
+  if (appleObject) {
+    scene.remove(appleObject);
+    appleObject = null;
+  }
+}
+
 function updateAidenMorphTargets() {
   if (!mouthMesh || !mouthMesh.morphTargetDictionary) {
     showMorphTargetsList([], null, "aiden");
@@ -632,28 +845,35 @@ function updateAidenMorphTargets() {
   }
   const names = Object.keys(mouthMesh.morphTargetDictionary).sort();
   showMorphTargetsList(names, null, "aiden");
+  logBlendshapeCoverage(mouthMesh, ARKIT_BLENDSHAPES, "aiden");
+}
+
+if (morphTargetsHeader) {
+  morphTargetsHeader.addEventListener("click", () => {
+    const expanded = morphTargetsWindow?.classList.contains("collapsed");
+    setMorphTargetsWindow(Boolean(expanded));
+  });
 }
 
 if (visemeSelect) {
   visemeSelect.addEventListener("change", (event) => {
+    setVisemePanelVisibility(true);
     const value = event.target.value;
     applyVisemePose(value, externalIntensity);
+    renderVisemeTuner(value);
   });
 }
 
-if (intensitySlider) {
-  intensitySlider.addEventListener("input", (event) => {
-    const next = Number(event.target.value);
-    externalIntensity = Math.max(0, Math.min(1, next));
-    if (intensityValue) {
-      intensityValue.textContent = externalIntensity.toFixed(2);
-    }
-    const current = visemeSelect?.value || externalViseme || "sil";
-    applyVisemePose(current, externalIntensity);
-  });
+if (visemeSaveTuningBtn) {
+  visemeSaveTuningBtn.addEventListener("click", saveVisemeTuning);
+}
+
+if (visemeResetTuningBtn) {
+  visemeResetTuningBtn.addEventListener("click", resetVisemeTuning);
 }
 
 const loadFaceModel = async (idx = 0) => {
+  setVisemePanelVisibility(false);
   if (idx === 0) {
     clearFaceModel();
     setMorphListText("Loading FaceCap morph targets...");
@@ -677,10 +897,10 @@ const loadFaceModel = async (idx = 0) => {
 
       face.scale.setScalar(scale);
       face.position.sub(center.multiplyScalar(scale));
-      face.position.add(orbitTarget);
 
       scene.add(face);
       const collected = new Set();
+      let firstBlendMesh = null;
       face.traverse((child) => {
         if (child.isMesh && child.morphTargetDictionary && child.morphTargetInfluences) {
           morphTargetMeshes.push(child);
@@ -693,14 +913,19 @@ const loadFaceModel = async (idx = 0) => {
             targetNames.length
           );
           targetNames.forEach((name) => collected.add(name));
+          if (!firstBlendMesh) {
+            firstBlendMesh = child;
+          }
         }
       });
-      showMorphTargetsList(
-        Array.from(collected).sort(),
-        "FaceCap model has no morph targets."
-      );
-      updateSphericalFromCamera();
-      updateCameraFromSpherical();
+        showMorphTargetsList(
+          Array.from(collected).sort(),
+          "FaceCap model has no morph targets."
+        );
+        if (firstBlendMesh) {
+          logBlendshapeCoverage(firstBlendMesh, ARKIT_BLENDSHAPES, "facecap");
+        }
+      focusOnBoundingBox(new THREE.Box3().setFromObject(face));
       applyVisemePose(visemeSelect?.value || "sil", externalIntensity);
     },
     undefined,
@@ -712,13 +937,20 @@ const loadFaceModel = async (idx = 0) => {
 };
 
 const setModelMode = (mode) => {
+  setVisemePanelVisibility(false);
   if (currentModelMode === mode) return;
   currentModelMode = mode;
   if (mode === "facecap") {
     removeAidenModel();
     loadFaceModel();
+    removeAppleModel();
+  } else if (mode === "apple") {
+    removeAidenModel();
+    clearFaceModel();
+    loadAppleModel();
   } else {
     clearFaceModel();
+    removeAppleModel();
     updateAidenMorphTargets();
     addAidenModel();
   }
@@ -737,6 +969,7 @@ if (useFaceModel) {
   loadFaceModel();
 } else {
   addAidenModel();
+  updateAidenMorphTargets();
 }
 
 function animate() {
@@ -873,4 +1106,17 @@ function updateCameraFromSpherical() {
   const offset = new THREE.Vector3().setFromSpherical(spherical);
   camera.position.copy(orbitTarget).add(offset);
   camera.lookAt(orbitTarget);
+}
+
+function focusOnBoundingBox(box) {
+  if (!box || typeof box.getSize !== "function" || typeof box.getCenter !== "function") {
+    return;
+  }
+  box.getSize(focusBoxSize);
+  box.getCenter(focusBoxCenter);
+  orbitTarget.copy(focusBoxCenter);
+  const maxSize = Math.max(focusBoxSize.x, focusBoxSize.y, focusBoxSize.z, 0.1);
+  spherical.radius = THREE.MathUtils.clamp(maxSize * 1.5, minRadius, maxRadius);
+  updateCameraFromSpherical();
+  updateSphericalFromCamera();
 }
